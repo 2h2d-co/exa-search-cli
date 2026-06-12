@@ -27,12 +27,10 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "check": "npm run typecheck && npm run lint",
     "test": "node --test --test-concurrency=1 test/*.test.ts",
     "fmt": "oxfmt",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "pack:dry": "npm run build && npm pack --dry-run --allow-directory=all"
+    "lint:fix": "oxlint --fix"
   },
   "devDependencies": {
     "@types/node": "^24",

@@ -62,11 +62,10 @@ Run `exa-search --help` for the full option list.
 ```bash
 mise install
 npm install
-npm run typecheck
-npm run lint
+mise run check
 npm test
 npm run build
-npm run pack:dry
+mise run pack:dry
 ```
 
 Publishing tasks dry-run by default. Pass `--execute` to publish for real:

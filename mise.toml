@@ -7,7 +7,10 @@ _.path = ["{{config_root}}/node_modules/.bin"]
 
 [tasks.check]
 description = "Typecheck and lint the CLI"
-run = "npm run check"
+run = """
+npm run typecheck
+npm run lint
+"""
 
 [tasks.test]
 description = "Run tests"
@@ -23,7 +26,10 @@ run = "npm run lint"
 
 [tasks."pack:dry"]
 description = "Validate the npm package contents without publishing"
-run = "npm run pack:dry"
+run = """
+npm run build
+npm pack --dry-run --allow-directory=all
+"""
 
 [tasks."publish:alpha"]
 description = "Dry-run publishing exa-search-cli to npm with the alpha dist-tag. Pass --execute to publish."
@@ -31,10 +37,9 @@ usage = """
 flag "--execute" help="Publish to npm for real instead of running npm publish --dry-run"
 """
 run = """
-npm run lint
-npm run typecheck
+mise run check
 npm test
-npm run pack:dry
+mise run pack:dry
 
 publish_mode="--dry-run"
 if [ "${usage_execute:-false}" = "true" ]; then
@@ -53,10 +58,9 @@ usage = """
 flag "--execute" help="Publish to npm for real instead of running npm publish --dry-run"
 """
 run = """
-npm run lint
-npm run typecheck
+mise run check
 npm test
-npm run pack:dry
+mise run pack:dry
 
 publish_mode="--dry-run"
 if [ "${usage_execute:-false}" = "true" ]; then
@@ -75,10 +79,9 @@ usage = """
 flag "--execute" help="Publish to npm for real instead of running npm publish --dry-run"
 """
 run = """
-npm run lint
-npm run typecheck
+mise run check
 npm test
-npm run pack:dry
+mise run pack:dry
 
 publish_mode="--dry-run"
 if [ "${usage_execute:-false}" = "true" ]; then
