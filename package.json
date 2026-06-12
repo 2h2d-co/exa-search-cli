@@ -13,9 +13,10 @@
     "url": "git+https://github.com/2h2d-co/exa-search-cli.git"
   },
   "bin": {
-    "exa-search": "./src/cli.ts"
+    "exa-search": "bin/exa-search.js"
   },
   "files": [
+    "bin",
     "src",
     "README.md",
     "CHANGELOG.md",

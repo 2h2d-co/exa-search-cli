@@ -14,7 +14,7 @@ This project is not affiliated with, endorsed by, or maintained by Exa.
 - npm package: `exa-search-cli`
 - CLI command: `exa-search`
 - no runtime dependencies and no install/postinstall scripts
-- TypeScript source is published directly and runs with Node 24 type stripping
+- TypeScript source is published directly and runs with Node 24 type stripping through a small npm bin shim
 
 ## Install
 
@@ -62,7 +62,16 @@ npm test
 npm run pack:dry
 ```
 
-The project uses `oxfmt`, `oxlint`, TypeScript 6 with `erasableSyntaxOnly`, and publishes the TypeScript CLI directly without a build or postinstall step.
+Publishing tasks dry-run by default. Pass `--execute` to publish for real:
+
+```bash
+mise run publish:alpha
+mise run publish:alpha --execute
+mise run publish:beta
+mise run publish:prod
+```
+
+The project uses `oxfmt`, `oxlint`, TypeScript 6 with `erasableSyntaxOnly`, and publishes the TypeScript CLI without a build or postinstall step.
 
 ## License
 
