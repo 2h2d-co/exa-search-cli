@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-export const VERSION = "0.0.1-alpha.1";
+export const VERSION = "0.0.1-alpha.2";
 
 const SEARCH_TYPES = ["auto", "fast", "instant", "deep-lite", "deep", "deep-reasoning"];
 const CATEGORIES = [

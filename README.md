@@ -14,7 +14,7 @@ This project is not affiliated with, endorsed by, or maintained by Exa.
 - npm package: `exa-search-cli`
 - CLI command: `exa-search`
 - no runtime dependencies and no install/postinstall scripts
-- TypeScript source is published directly and runs with Node 24 type stripping through a small npm bin shim
+- TypeScript source uses strippable syntax and npm distribution runs compiled JavaScript through a small bin shim
 
 ## Install
 
@@ -22,11 +22,17 @@ This project is not affiliated with, endorsed by, or maintained by Exa.
 npm install -g exa-search-cli
 ```
 
-With mise, install/use Node 24 first:
+With mise, use the npm backend. Because this alpha was just published, bypass the default minimum release age:
 
 ```bash
-mise install
-npm install -g exa-search-cli
+mise use --minimum-release-age 0d npm:exa-search-cli@0.0.1-alpha.2
+exa-search --version
+```
+
+For a one-off run:
+
+```bash
+MISE_MINIMUM_RELEASE_AGE=0d mise x npm:exa-search-cli@0.0.1-alpha.2 -- exa-search --help
 ```
 
 ## Authentication
@@ -59,6 +65,7 @@ npm install
 npm run typecheck
 npm run lint
 npm test
+npm run build
 npm run pack:dry
 ```
 
@@ -71,7 +78,7 @@ mise run publish:beta
 mise run publish:prod
 ```
 
-The project uses `oxfmt`, `oxlint`, TypeScript 6 with `erasableSyntaxOnly`, and publishes the TypeScript CLI without a build or postinstall step.
+The project uses `oxfmt`, `oxlint`, TypeScript 6 with `erasableSyntaxOnly`, and publishes compiled JavaScript without install/postinstall scripts.
 
 ## License
 
