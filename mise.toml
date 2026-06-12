@@ -1,0 +1,26 @@
+[tools]
+npm = "latest"
+node = "24"
+
+[env]
+_.path = ["{{config_root}}/node_modules/.bin"]
+
+[tasks.check]
+description = "Typecheck and lint the CLI"
+run = "npm run check"
+
+[tasks.test]
+description = "Run tests"
+run = "npm test"
+
+[tasks.fmt]
+description = "Format with oxfmt"
+run = "npm run fmt"
+
+[tasks.lint]
+description = "Lint with oxlint"
+run = "npm run lint"
+
+[tasks."pack:dry"]
+description = "Validate the npm package contents without publishing"
+run = "npm run pack:dry"

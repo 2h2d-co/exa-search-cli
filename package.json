@@ -1,0 +1,44 @@
+{
+  "name": "exa-search-cli",
+  "version": "0.0.1-alpha.1",
+  "description": "An unofficial zero-runtime-dependency CLI for the Exa Search API",
+  "homepage": "https://github.com/2h2d-co/exa-search-cli#readme",
+  "bugs": {
+    "url": "https://github.com/2h2d-co/exa-search-cli/issues"
+  },
+  "license": "MIT",
+  "author": "Kaan Ozdokmeci",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2h2d-co/exa-search-cli.git"
+  },
+  "bin": {
+    "exa-search": "./src/cli.ts"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "check": "npm run typecheck && npm run lint",
+    "test": "node --test --test-concurrency=1 test/*.test.ts",
+    "fmt": "oxfmt",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "pack:dry": "npm pack --dry-run --allow-directory=all"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "oxfmt": "^0.48.0",
+    "oxlint": "^1.63.0",
+    "oxlint-tsgolint": "^0.22.1",
+    "typescript": "^6"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

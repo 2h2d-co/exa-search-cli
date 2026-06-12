@@ -1,0 +1,13 @@
+node_modules/
+*.tgz
+.DS_Store
+.env
+coverage/
+
+# Local agent/project notes
+DESIRES.md
+LEARNINGS.md
+MISTAKES.md
+
+# Local source/reference material
+exa-search-api.md
