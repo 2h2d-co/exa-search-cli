@@ -19,7 +19,7 @@ This project is not affiliated with, endorsed by, or maintained by Exa.
 ## Install
 
 ```bash
-npm install -g exa-search-cli
+npm install -g exa-search-cli@alpha
 ```
 
 With mise, use the npm backend. Because this alpha was just published, bypass the default minimum release age:
