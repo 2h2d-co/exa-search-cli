@@ -146,17 +146,17 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
         break;
       case "-n":
       case "--num-results":
-        state.generated.numResults = parseInteger(readValue(), flag.name, { min: 1, max: 100 });
+        state.generated["numResults"] = parseInteger(readValue(), flag.name, { min: 1, max: 100 });
         break;
       case "-t":
       case "--type":
-        state.generated.type = parseAllowed(readValue(), flag.name, SEARCH_TYPES);
+        state.generated["type"] = parseAllowed(readValue(), flag.name, SEARCH_TYPES);
         break;
       case "--category":
-        state.generated.category = parseAllowed(readValue(), flag.name, CATEGORIES);
+        state.generated["category"] = parseAllowed(readValue(), flag.name, CATEGORIES);
         break;
       case "--user-location":
-        state.generated.userLocation = parseUserLocation(readValue(), flag.name);
+        state.generated["userLocation"] = parseUserLocation(readValue(), flag.name);
         break;
       case "--include-domain":
       case "--include-domains":
@@ -167,32 +167,32 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
         state.excludeDomains.push(...parseList(readValue()));
         break;
       case "--start-published-date":
-        state.generated.startPublishedDate = readValue();
+        state.generated["startPublishedDate"] = readValue();
         break;
       case "--end-published-date":
-        state.generated.endPublishedDate = readValue();
+        state.generated["endPublishedDate"] = readValue();
         break;
       case "--moderation":
-        state.generated.moderation = true;
+        state.generated["moderation"] = true;
         break;
       case "--no-moderation":
-        state.generated.moderation = false;
+        state.generated["moderation"] = false;
         break;
       case "--additional-query":
       case "--additional-queries":
         state.additionalQueries.push(readValue());
         break;
       case "--system-prompt":
-        state.generated.systemPrompt = readValue();
+        state.generated["systemPrompt"] = readValue();
         break;
       case "--output-schema":
-        state.generated.outputSchema = parseJsonOrFile(readValue(), flag.name);
+        state.generated["outputSchema"] = parseJsonOrFile(readValue(), flag.name);
         break;
       case "--compliance":
-        state.generated.compliance = readValue();
+        state.generated["compliance"] = readValue();
         break;
       case "--stream":
-        state.generated.stream = true;
+        state.generated["stream"] = true;
         break;
       case "--body":
         state.bodyBase = parseJsonObject(readValue(), flag.name);
@@ -222,17 +222,17 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
       case "--text-max-characters":
         state.contentModeExplicit = true;
         state.textEnabled = true;
-        state.textOptions.maxCharacters = parseInteger(readValue(), flag.name, { min: 1 });
+        state.textOptions["maxCharacters"] = parseInteger(readValue(), flag.name, { min: 1 });
         break;
       case "--include-html-tags":
         state.contentModeExplicit = true;
         state.textEnabled = true;
-        state.textOptions.includeHtmlTags = true;
+        state.textOptions["includeHtmlTags"] = true;
         break;
       case "--text-verbosity":
         state.contentModeExplicit = true;
         state.textEnabled = true;
-        state.textOptions.verbosity = parseAllowed(readValue(), flag.name, TEXT_VERBOSITIES);
+        state.textOptions["verbosity"] = parseAllowed(readValue(), flag.name, TEXT_VERBOSITIES);
         break;
       case "--include-section":
       case "--include-sections":
@@ -253,35 +253,43 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
       case "--summary-query":
         state.contentModeExplicit = true;
         state.summaryEnabled = true;
-        state.summaryOptions.query = readValue();
+        state.summaryOptions["query"] = readValue();
         break;
       case "--summary-schema":
         state.contentModeExplicit = true;
         state.summaryEnabled = true;
-        state.summaryOptions.schema = parseJsonOrFile(readValue(), flag.name);
+        state.summaryOptions["schema"] = parseJsonOrFile(readValue(), flag.name);
         break;
       case "--livecrawl-timeout":
-        state.generatedContents.livecrawlTimeout = parseInteger(readValue(), flag.name, { min: 1 });
+        state.generatedContents["livecrawlTimeout"] = parseInteger(readValue(), flag.name, {
+          min: 1,
+        });
         break;
       case "--max-age-hours":
-        state.generatedContents.maxAgeHours = parseInteger(readValue(), flag.name, { min: -1 });
+        state.generatedContents["maxAgeHours"] = parseInteger(readValue(), flag.name, { min: -1 });
         break;
       case "--subpages":
-        state.generatedContents.subpages = parseInteger(readValue(), flag.name, { min: 0 });
+        state.generatedContents["subpages"] = parseInteger(readValue(), flag.name, { min: 0 });
         break;
       case "--subpage-target":
       case "--subpage-targets":
         state.subpageTargets.push(...parseList(readValue()));
         break;
       case "--links":
-        state.generatedContents.extras = mergeObjects(getRecord(state.generatedContents.extras), {
-          links: parseInteger(readValue(), flag.name, { min: 0 }),
-        });
+        state.generatedContents["extras"] = mergeObjects(
+          getRecord(state.generatedContents["extras"]),
+          {
+            links: parseInteger(readValue(), flag.name, { min: 0 }),
+          },
+        );
         break;
       case "--image-links":
-        state.generatedContents.extras = mergeObjects(getRecord(state.generatedContents.extras), {
-          imageLinks: parseInteger(readValue(), flag.name, { min: 0 }),
-        });
+        state.generatedContents["extras"] = mergeObjects(
+          getRecord(state.generatedContents["extras"]),
+          {
+            imageLinks: parseInteger(readValue(), flag.name, { min: 0 }),
+          },
+        );
         break;
       case "--format":
         state.format = parseAllowed(readValue(), flag.name, OUTPUT_FORMATS) as OutputFormat;
@@ -432,37 +440,37 @@ function buildCommand(state: ParseState, env: Environment): CliCommand {
   }
 
   if (state.query !== undefined && state.query.trim() !== "") {
-    state.generated.query = state.query;
+    state.generated["query"] = state.query;
   } else if (state.positionalQuery.length > 0) {
-    state.generated.query = state.positionalQuery.join(" ");
+    state.generated["query"] = state.positionalQuery.join(" ");
   }
 
   if (state.includeDomains.length > 0) {
-    state.generated.includeDomains = uniqueStrings(state.includeDomains);
+    state.generated["includeDomains"] = uniqueStrings(state.includeDomains);
   }
 
   if (state.excludeDomains.length > 0) {
-    state.generated.excludeDomains = uniqueStrings(state.excludeDomains);
+    state.generated["excludeDomains"] = uniqueStrings(state.excludeDomains);
   }
 
   if (state.additionalQueries.length > 0) {
-    state.generated.additionalQueries = uniqueStrings(state.additionalQueries);
+    state.generated["additionalQueries"] = uniqueStrings(state.additionalQueries);
   }
 
   const contents = buildContents(state);
   if (Object.keys(contents).length > 0) {
-    state.generated.contents = contents;
+    state.generated["contents"] = contents;
   }
 
   const request = mergeObjects(state.bodyBase ?? {}, state.generated);
   validateRequest(request);
 
-  const apiKey = state.apiKey ?? env.EXA_API_KEY;
+  const apiKey = state.apiKey ?? env["EXA_API_KEY"];
   if (apiKey === undefined || apiKey.trim() === "") {
     throw new CliError("Missing API key. Set EXA_API_KEY or pass --api-key.");
   }
 
-  const baseUrl = state.baseUrl ?? env.EXA_BASE_URL ?? "https://api.exa.ai";
+  const baseUrl = state.baseUrl ?? env["EXA_BASE_URL"] ?? "https://api.exa.ai";
 
   return {
     kind: "run",
@@ -472,7 +480,7 @@ function buildCommand(state: ParseState, env: Environment): CliCommand {
       compact: state.compact,
       format: state.format,
       request,
-      stream: request.stream === true,
+      stream: request["stream"] === true,
       timeoutMs: state.timeoutMs,
     },
   };
@@ -488,35 +496,36 @@ function buildContents(state: ParseState): Record<string, unknown> {
   if (state.highlightPreference === "enabled" || shouldDefaultHighlights) {
     const highlightOptions: Record<string, unknown> = {};
     if (state.highlightQuery !== undefined) {
-      highlightOptions.query = state.highlightQuery;
+      highlightOptions["query"] = state.highlightQuery;
     }
 
     if (state.highlightMaxCharacters !== undefined) {
-      highlightOptions.maxCharacters = state.highlightMaxCharacters;
+      highlightOptions["maxCharacters"] = state.highlightMaxCharacters;
     }
 
-    contents.highlights = Object.keys(highlightOptions).length > 0 ? highlightOptions : true;
+    contents["highlights"] = Object.keys(highlightOptions).length > 0 ? highlightOptions : true;
   }
 
   if (state.textEnabled) {
     if (state.includeSections.length > 0) {
-      state.textOptions.includeSections = uniqueStrings(state.includeSections);
+      state.textOptions["includeSections"] = uniqueStrings(state.includeSections);
     }
 
     if (state.excludeSections.length > 0) {
-      state.textOptions.excludeSections = uniqueStrings(state.excludeSections);
+      state.textOptions["excludeSections"] = uniqueStrings(state.excludeSections);
     }
 
-    contents.text = Object.keys(state.textOptions).length > 0 ? state.textOptions : true;
+    contents["text"] = Object.keys(state.textOptions).length > 0 ? state.textOptions : true;
   }
 
   if (state.summaryEnabled) {
-    contents.summary = Object.keys(state.summaryOptions).length > 0 ? state.summaryOptions : true;
+    contents["summary"] =
+      Object.keys(state.summaryOptions).length > 0 ? state.summaryOptions : true;
   }
 
   if (state.subpageTargets.length > 0) {
     const targets = uniqueStrings(state.subpageTargets);
-    contents.subpageTarget = targets.length === 1 ? targets[0] : targets;
+    contents["subpageTarget"] = targets.length === 1 ? targets[0] : targets;
   }
 
   const generatedContents = getRecord(state.generatedContents);
@@ -524,54 +533,59 @@ function buildContents(state: ParseState): Record<string, unknown> {
 }
 
 function validateRequest(request: Record<string, unknown>): void {
-  const query = request.query;
+  const query = request["query"];
   if (typeof query !== "string" || query.trim() === "") {
     throw new CliError(
       "A non-empty query is required. Pass positional query text, --query, or --body with query.",
     );
   }
 
-  if (request.type !== undefined) {
-    assertAllowedValue(request.type, "type", SEARCH_TYPES);
+  if (request["type"] !== undefined) {
+    assertAllowedValue(request["type"], "type", SEARCH_TYPES);
   }
 
-  if (request.stream !== undefined && typeof request.stream !== "boolean") {
+  if (request["stream"] !== undefined && typeof request["stream"] !== "boolean") {
     throw new CliError("stream must be a boolean");
   }
 
-  if (request.numResults !== undefined) {
-    assertIntegerValue(request.numResults, "numResults", { min: 1, max: 100 });
+  if (request["numResults"] !== undefined) {
+    assertIntegerValue(request["numResults"], "numResults", { min: 1, max: 100 });
   }
 
-  if (request.category !== undefined) {
-    assertAllowedValue(request.category, "category", CATEGORIES);
+  if (request["category"] !== undefined) {
+    assertAllowedValue(request["category"], "category", CATEGORIES);
   }
 
-  if (request.userLocation !== undefined) {
-    if (typeof request.userLocation !== "string" || !/^[A-Za-z]{2}$/.test(request.userLocation)) {
+  if (request["userLocation"] !== undefined) {
+    if (
+      typeof request["userLocation"] !== "string" ||
+      !/^[A-Za-z]{2}$/.test(request["userLocation"])
+    ) {
       throw new CliError("userLocation must be a two-letter ISO country code");
     }
   }
 
-  if (request.moderation !== undefined && typeof request.moderation !== "boolean") {
+  if (request["moderation"] !== undefined && typeof request["moderation"] !== "boolean") {
     throw new CliError("moderation must be a boolean");
   }
 
-  validateStringArray(request.includeDomains, "includeDomains", 1200);
-  validateStringArray(request.excludeDomains, "excludeDomains", 1200);
-  validateStringArray(request.additionalQueries, "additionalQueries");
+  validateStringArray(request["includeDomains"], "includeDomains", 1200);
+  validateStringArray(request["excludeDomains"], "excludeDomains", 1200);
+  validateStringArray(request["additionalQueries"], "additionalQueries");
 
-  if (request.category === "company" || request.category === "people") {
+  if (request["category"] === "company" || request["category"] === "people") {
     const forbidden = ["excludeDomains", "startPublishedDate", "endPublishedDate"].filter(
       (field) => request[field] !== undefined,
     );
     if (forbidden.length > 0) {
-      throw new CliError(`${request.category} category does not support: ${forbidden.join(", ")}`);
+      throw new CliError(
+        `${request["category"]} category does not support: ${forbidden.join(", ")}`,
+      );
     }
   }
 
-  if (request.contents !== undefined) {
-    validateContents(request.contents);
+  if (request["contents"] !== undefined) {
+    validateContents(request["contents"]);
   }
 }
 
@@ -580,37 +594,37 @@ function validateContents(value: unknown): void {
     throw new CliError("contents must be an object");
   }
 
-  validateBooleanOrObject(value.highlights, "contents.highlights");
-  validateBooleanOrObject(value.text, "contents.text");
-  validateBooleanOrObject(value.summary, "contents.summary");
+  validateBooleanOrObject(value["highlights"], "contents.highlights");
+  validateBooleanOrObject(value["text"], "contents.text");
+  validateBooleanOrObject(value["summary"], "contents.summary");
 
-  if (value.livecrawlTimeout !== undefined) {
-    assertIntegerValue(value.livecrawlTimeout, "contents.livecrawlTimeout", { min: 1 });
+  if (value["livecrawlTimeout"] !== undefined) {
+    assertIntegerValue(value["livecrawlTimeout"], "contents.livecrawlTimeout", { min: 1 });
   }
 
-  if (value.maxAgeHours !== undefined) {
-    assertIntegerValue(value.maxAgeHours, "contents.maxAgeHours", { min: -1 });
+  if (value["maxAgeHours"] !== undefined) {
+    assertIntegerValue(value["maxAgeHours"], "contents.maxAgeHours", { min: -1 });
   }
 
-  if (value.subpages !== undefined) {
-    assertIntegerValue(value.subpages, "contents.subpages", { min: 0 });
+  if (value["subpages"] !== undefined) {
+    assertIntegerValue(value["subpages"], "contents.subpages", { min: 0 });
   }
 
-  if (value.subpageTarget !== undefined && typeof value.subpageTarget !== "string") {
-    validateStringArray(value.subpageTarget, "contents.subpageTarget");
+  if (value["subpageTarget"] !== undefined && typeof value["subpageTarget"] !== "string") {
+    validateStringArray(value["subpageTarget"], "contents.subpageTarget");
   }
 
-  if (value.extras !== undefined) {
-    if (!isRecord(value.extras)) {
+  if (value["extras"] !== undefined) {
+    if (!isRecord(value["extras"])) {
       throw new CliError("contents.extras must be an object");
     }
 
-    if (value.extras.links !== undefined) {
-      assertIntegerValue(value.extras.links, "contents.extras.links", { min: 0 });
+    if (value["extras"]["links"] !== undefined) {
+      assertIntegerValue(value["extras"]["links"], "contents.extras.links", { min: 0 });
     }
 
-    if (value.extras.imageLinks !== undefined) {
-      assertIntegerValue(value.extras.imageLinks, "contents.extras.imageLinks", { min: 0 });
+    if (value["extras"]["imageLinks"] !== undefined) {
+      assertIntegerValue(value["extras"]["imageLinks"], "contents.extras.imageLinks", { min: 0 });
     }
   }
 }
@@ -649,8 +663,8 @@ async function buildHttpError(response: Response): Promise<CliError> {
   if (detail !== "") {
     try {
       const parsed = JSON.parse(detail) as unknown;
-      if (isRecord(parsed) && typeof parsed.error === "string") {
-        detail = parsed.error;
+      if (isRecord(parsed) && typeof parsed["error"] === "string") {
+        detail = parsed["error"];
       }
     } catch {
       // Keep the plain text body.
@@ -677,16 +691,20 @@ function writeSseContent(event: string, write: (chunk: string) => void): void {
 
   try {
     const parsed = JSON.parse(data) as unknown;
-    if (!isRecord(parsed) || !Array.isArray(parsed.choices)) {
+    if (!isRecord(parsed) || !Array.isArray(parsed["choices"])) {
       return;
     }
 
-    const choice = parsed.choices[0];
-    if (!isRecord(choice) || !isRecord(choice.delta) || typeof choice.delta.content !== "string") {
+    const choice = parsed["choices"][0];
+    if (
+      !isRecord(choice) ||
+      !isRecord(choice["delta"]) ||
+      typeof choice["delta"]["content"] !== "string"
+    ) {
       return;
     }
 
-    write(choice.delta.content);
+    write(choice["delta"]["content"]);
   } catch {
     write(data);
   }
@@ -695,8 +713,12 @@ function writeSseContent(event: string, write: (chunk: string) => void): void {
 function formatTextResponse(response: unknown): string {
   const lines: string[] = [];
 
-  if (isRecord(response) && isRecord(response.output) && response.output.content !== undefined) {
-    lines.push(formatContentValue(response.output.content));
+  if (
+    isRecord(response) &&
+    isRecord(response["output"]) &&
+    response["output"]["content"] !== undefined
+  ) {
+    lines.push(formatContentValue(response["output"]["content"]));
     lines.push("");
   }
 
@@ -721,9 +743,9 @@ function formatTextResponse(response: unknown): string {
       lines.push(indentBlock(summary, "   Summary: ", "            "));
     }
 
-    if (Array.isArray(result.highlights) && result.highlights.length > 0) {
+    if (Array.isArray(result["highlights"]) && result["highlights"].length > 0) {
       lines.push("   Highlights:");
-      for (const highlight of result.highlights) {
+      for (const highlight of result["highlights"]) {
         if (typeof highlight === "string") {
           lines.push(indentBlock(highlight, "   - ", "     "));
         }
@@ -731,7 +753,7 @@ function formatTextResponse(response: unknown): string {
     }
 
     const text = stringField(result, "text");
-    if (text !== undefined && summary === undefined && !Array.isArray(result.highlights)) {
+    if (text !== undefined && summary === undefined && !Array.isArray(result["highlights"])) {
       lines.push(indentBlock(text, "   Text: ", "         "));
     }
 
@@ -744,8 +766,8 @@ function formatTextResponse(response: unknown): string {
       lines.push(`requestId: ${requestId}`);
     }
 
-    if (isRecord(response.costDollars) && typeof response.costDollars.total === "number") {
-      lines.push(`costDollars.total: ${response.costDollars.total}`);
+    if (isRecord(response["costDollars"]) && typeof response["costDollars"]["total"] === "number") {
+      lines.push(`costDollars.total: ${response["costDollars"]["total"]}`);
     }
   }
 
@@ -753,11 +775,11 @@ function formatTextResponse(response: unknown): string {
 }
 
 function extractResults(response: unknown): Record<string, unknown>[] {
-  if (!isRecord(response) || !Array.isArray(response.results)) {
+  if (!isRecord(response) || !Array.isArray(response["results"])) {
     return [];
   }
 
-  return response.results.filter(isRecord);
+  return response["results"].filter(isRecord);
 }
 
 function formatContentValue(value: unknown): string {
