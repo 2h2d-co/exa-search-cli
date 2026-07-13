@@ -31,10 +31,13 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
+    "check": "npm run typecheck && npm run lint",
     "test": "node --test --test-concurrency=1 test/*.test.ts",
     "fmt": "oxfmt",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "pack:dry": "npm run build && npm pack --dry-run --allow-directory=all",
+    "release:publish": "npm run check && npm test && npm run pack:dry && node ./scripts/publish.ts --allow-directory=all"
   },
   "devDependencies": {
     "@types/node": "^24",

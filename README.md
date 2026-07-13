@@ -62,20 +62,22 @@ Run `exa-search --help` for the full option list.
 ```bash
 mise install
 npm install
-mise run check
+npm run check
 npm test
 npm run build
-mise run pack:dry
+npm run pack:dry
 ```
 
-Publishing tasks dry-run by default. Pass `--execute` to publish for real:
+Release helper:
 
 ```bash
-mise run publish:alpha
-mise run publish:alpha --execute
-mise run publish:beta
-mise run publish:prod
+npm run release:publish
+npm run release:publish -- --execute
 ```
+
+`npm run release:publish` runs checks, tests, a build, and an npm pack dry-run first. It then defaults to an npm publish dry-run. Pass `--execute` to perform the real publish.
+
+The publish helper derives the npm dist-tag from `package.json`: stable versions publish to `latest`, and prereleases publish to their first prerelease identifier, such as `alpha`, `beta`, or `rc`. It does not create commits or tags. A real publish requires a clean Git worktree, the release commit pushed to the branch upstream, and a pushed `v<version>` tag pointing at the release commit.
 
 The project uses `oxfmt`, `oxlint`, TypeScript 6 with `erasableSyntaxOnly`, and publishes compiled JavaScript without install/postinstall scripts.
 
