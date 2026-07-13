@@ -68,16 +68,7 @@ npm run build
 npm run pack:dry
 ```
 
-Release helper:
-
-```bash
-npm run release:publish
-npm run release:publish -- --execute
-```
-
-`npm run release:publish` runs checks, tests, a build, and an npm pack dry-run first. It then defaults to an npm publish dry-run. Pass `--execute` to perform the real publish.
-
-The publish helper derives the npm dist-tag from `package.json`: stable versions publish to `latest`, and prereleases publish to their first prerelease identifier, such as `alpha`, `beta`, or `rc`. It does not create commits or tags. A real publish requires a clean Git worktree, the release commit pushed to the branch upstream, and a pushed `v<version>` tag pointing at the release commit.
+Stable and prerelease `v<version>` tags trigger the shared CI release flow. CI validates the release commit and tag, runs checks and tests, previews the package, and stages it on npm with provenance. Stable versions use `latest`; prereleases derive the npm dist-tag from their first prerelease identifier.
 
 The project uses `oxfmt`, `oxlint`, TypeScript 6 with `erasableSyntaxOnly`, and publishes compiled JavaScript without install/postinstall scripts.
 

@@ -36,8 +36,7 @@
     "fmt": "oxfmt",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "pack:dry": "npm run build && npm pack --dry-run --allow-directory=all",
-    "release:publish": "npm run check && npm test && npm run pack:dry && node ./scripts/publish.ts --allow-directory=all"
+    "pack:dry": "npm run build && npm pack --dry-run --allow-directory=all"
   },
   "devDependencies": {
     "@types/node": "^24",
