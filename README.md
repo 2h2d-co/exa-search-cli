@@ -6,7 +6,7 @@ This project is not affiliated with, endorsed by, or maintained by Exa.
 
 ## Requirements
 
-- Node.js 24 or newer
+- Node.js 22.19 or newer
 - An Exa API key
 
 ## Package
@@ -70,7 +70,7 @@ npm run pack:dry
 
 Stable and prerelease `v<version>` tags trigger the shared CI release flow. CI validates the release commit and tag, runs checks and tests, previews the package, and stages it on npm with provenance. Stable versions use `latest`; prereleases derive the npm dist-tag from their first prerelease identifier.
 
-The project uses `oxfmt`, `oxlint`, TypeScript 6 with `erasableSyntaxOnly`, and publishes compiled JavaScript without install/postinstall scripts.
+The project uses `oxfmt`, `oxlint`, TypeScript 7 with `erasableSyntaxOnly`, and publishes compiled JavaScript without install/postinstall scripts.
 
 ## License
 
