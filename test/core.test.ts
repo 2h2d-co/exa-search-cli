@@ -4,7 +4,7 @@ import { CliError, formatResponse, parseCli } from "../src/core.ts";
 
 const env = { EXA_API_KEY: "test-key" };
 
-test("builds a default highlights request from positional query", () => {
+void test("builds a default highlights request from positional query", () => {
   const command = parseCli(["--num-results", "3", "latest", "LLM", "news"], env);
   assert.equal(command.kind, "run");
 
@@ -21,7 +21,7 @@ test("builds a default highlights request from positional query", () => {
   assert.equal(command.options.baseUrl, "https://api.exa.ai");
 });
 
-test("uses explicit content modes instead of default highlights", () => {
+void test("uses explicit content modes instead of default highlights", () => {
   const command = parseCli(
     ["--query", "architecture", "--text", "--text-max-characters", "5000"],
     env,
@@ -38,7 +38,7 @@ test("uses explicit content modes instead of default highlights", () => {
   });
 });
 
-test("merges body as a base request and lets cli flags override", () => {
+void test("merges body as a base request and lets cli flags override", () => {
   const command = parseCli(
     [
       "--body",
@@ -66,7 +66,7 @@ test("merges body as a base request and lets cli flags override", () => {
   });
 });
 
-test("rejects unsupported filters for company and people categories", () => {
+void test("rejects unsupported filters for company and people categories", () => {
   assert.throws(
     () =>
       parseCli(["--category", "company", "--exclude-domain", "example.com", "sales tools"], env),
@@ -75,7 +75,7 @@ test("rejects unsupported filters for company and people categories", () => {
   );
 });
 
-test("formats urls output", () => {
+void test("formats urls output", () => {
   const output = formatResponse(
     {
       results: [
