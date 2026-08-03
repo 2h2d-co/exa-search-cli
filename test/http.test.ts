@@ -77,6 +77,7 @@ function makeOptions(baseUrl: string, request: Record<string, unknown>): CliRunO
     apiKey: "test-key",
     baseUrl,
     compact: false,
+    endpoint: "search",
     format: "json",
     request,
     stream: request["stream"] === true,

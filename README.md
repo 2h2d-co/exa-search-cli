@@ -1,6 +1,6 @@
 # exa-search-cli
 
-An unofficial, zero-runtime-dependency CLI for the [Exa Search API](https://api.exa.ai/search).
+An unofficial, zero-runtime-dependency CLI for the Exa [Search](https://api.exa.ai/search) and [Contents](https://api.exa.ai/contents) APIs.
 
 This project is not affiliated with, endorsed by, or maintained by Exa.
 
@@ -45,19 +45,31 @@ You can also pass `--api-key`, or set `EXA_BASE_URL` for testing against a compa
 
 ## Usage
 
+### Search
+
 ```bash
 exa-search "recent breakthroughs in quantum computing" --num-results 5
 exa-search "AI regulation policy updates" --category news --include-domain reuters.com,bbc.com --start-published-date 2025-01-01T00:00:00Z
 exa-search "compare frontier AI model releases" --type deep --system-prompt "Prefer official sources" --output-schema @schema.json
 ```
 
+### Extract contents
+
+```bash
+exa-search extract https://exa.ai/docs --highlights
+exa-search extract https://example.com --text --text-max-characters 5000
+exa-search extract --id https://arxiv.org/abs/2307.06435 --summary
+```
+
 Default output is pretty JSON. Use `--format text`, `--format urls`, or `--compact`.
 
-By default, the CLI requests `contents.highlights: true`. If you pass `--body` or explicitly choose another content mode such as `--text` or `--summary`, only those requested content options are sent.
+Both commands request highlights by default. Search nests content options under `contents`; extract sends them at the request root as required by their respective OpenAPI schemas. If you pass `--body` or explicitly choose another content mode such as `--text` or `--summary`, only those requested content options are sent.
 
-Streaming follows the [Exa OpenAPI specification](https://exa.ai/docs/exa-spec.yaml): synthesized output is streamed when both `stream: true` and `outputSchema` are present; otherwise Exa returns its normal JSON search response. The OpenAPI specification is the source of truth for request and response behavior.
+Extraction responses retain per-URL `statuses`. Text output renders them, and the CLI exits with status 2 when any URL fails while still printing the complete response.
 
-Run `exa-search --help` for the full option list.
+Search streaming follows the [Exa OpenAPI specification](https://exa.ai/docs/exa-spec.yaml): synthesized output is streamed when both `stream: true` and `outputSchema` are present; otherwise Exa returns its normal JSON search response. The Contents API does not stream. The OpenAPI specification is the source of truth for request and response behavior.
+
+Run `exa-search --help` for search options or `exa-search extract --help` for extraction options.
 
 ## Development
 

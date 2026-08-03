@@ -17,9 +17,12 @@ const TEXT_SECTIONS = ["header", "navigation", "banner", "body", "sidebar", "foo
 const OUTPUT_FORMATS = ["json", "text", "urls"];
 
 export type OutputFormat = "json" | "text" | "urls";
+export type ApiEndpoint = "search" | "contents";
+
+type HelpTopic = "search" | "extract";
 
 export type CliCommand =
-  | { kind: "help" }
+  | { kind: "help"; topic: HelpTopic }
   | { kind: "version" }
   | {
       kind: "run";
@@ -30,6 +33,7 @@ export type CliRunOptions = {
   apiKey: string;
   baseUrl: string;
   compact: boolean;
+  endpoint: ApiEndpoint;
   format: OutputFormat;
   request: Record<string, unknown>;
   stream: boolean;
@@ -76,26 +80,19 @@ export class CliError extends Error {
 }
 
 export function parseCli(argv: readonly string[], env: Environment = process.env): CliCommand {
-  const state: ParseState = {
-    additionalQueries: [],
-    compact: false,
-    contentModeExplicit: false,
-    excludeDomains: [],
-    excludeSections: [],
-    format: "json",
-    generated: {},
-    generatedContents: {},
-    highlightPreference: "auto",
-    includeDomains: [],
-    includeSections: [],
-    positionalQuery: [],
-    subpageTargets: [],
-    summaryEnabled: false,
-    summaryOptions: {},
-    textEnabled: false,
-    textOptions: {},
-    timeoutMs: 60_000,
-  };
+  if (argv[0] === "extract") {
+    return parseExtractCli(argv.slice(1), env);
+  }
+
+  if (argv[0] === "search") {
+    return parseSearchCli(argv.slice(1), env);
+  }
+
+  return parseSearchCli(argv, env);
+}
+
+function parseSearchCli(argv: readonly string[], env: Environment): CliCommand {
+  const state = createParseState();
 
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
@@ -128,10 +125,14 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
       return value;
     };
 
+    if (applyContentOption(flag.name, readValue, state)) {
+      continue;
+    }
+
     switch (flag.name) {
       case "-h":
       case "--help":
-        return { kind: "help" };
+        return { kind: "help", topic: "search" };
       case "-V":
       case "--version":
         return { kind: "version" };
@@ -198,137 +199,6 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
       case "--body":
         state.bodyBase = parseJsonObject(readValue(), flag.name);
         break;
-      case "--highlights":
-        state.contentModeExplicit = true;
-        state.highlightPreference = "enabled";
-        break;
-      case "--no-highlights":
-        state.contentModeExplicit = true;
-        state.highlightPreference = "disabled";
-        break;
-      case "--highlight-query":
-        state.contentModeExplicit = true;
-        state.highlightPreference = "enabled";
-        state.highlightQuery = readValue();
-        break;
-      case "--highlight-max-characters":
-        state.contentModeExplicit = true;
-        state.highlightPreference = "enabled";
-        state.highlightMaxCharacters = parseInteger(readValue(), flag.name, {
-          min: 1,
-          max: 10_000,
-        });
-        break;
-      case "--text":
-        state.contentModeExplicit = true;
-        state.textEnabled = true;
-        break;
-      case "--text-max-characters":
-        state.contentModeExplicit = true;
-        state.textEnabled = true;
-        state.textOptions["maxCharacters"] = parseInteger(readValue(), flag.name, {
-          min: 1,
-          max: 10_000,
-        });
-        break;
-      case "--include-html-tags":
-        state.contentModeExplicit = true;
-        state.textEnabled = true;
-        state.textOptions["includeHtmlTags"] = true;
-        break;
-      case "--text-verbosity":
-        state.contentModeExplicit = true;
-        state.textEnabled = true;
-        state.textOptions["verbosity"] = parseAllowed(readValue(), flag.name, TEXT_VERBOSITIES);
-        break;
-      case "--include-section":
-      case "--include-sections":
-        state.contentModeExplicit = true;
-        state.textEnabled = true;
-        state.includeSections.push(...parseAllowedList(readValue(), flag.name, TEXT_SECTIONS));
-        break;
-      case "--exclude-section":
-      case "--exclude-sections":
-        state.contentModeExplicit = true;
-        state.textEnabled = true;
-        state.excludeSections.push(...parseAllowedList(readValue(), flag.name, TEXT_SECTIONS));
-        break;
-      case "--summary":
-        state.contentModeExplicit = true;
-        state.summaryEnabled = true;
-        break;
-      case "--summary-query":
-        state.contentModeExplicit = true;
-        state.summaryEnabled = true;
-        state.summaryOptions["query"] = readValue();
-        break;
-      case "--summary-schema":
-        state.contentModeExplicit = true;
-        state.summaryEnabled = true;
-        state.summaryOptions["schema"] = parseJsonOrFile(readValue(), flag.name);
-        break;
-      case "--livecrawl-timeout":
-        state.generatedContents["livecrawlTimeout"] = parseInteger(readValue(), flag.name, {
-          min: 1,
-          max: 90_000,
-        });
-        break;
-      case "--max-age-hours":
-        state.generatedContents["maxAgeHours"] = parseInteger(readValue(), flag.name, {
-          min: -1,
-          max: 720,
-        });
-        break;
-      case "--subpages":
-        state.generatedContents["subpages"] = parseInteger(readValue(), flag.name, {
-          min: 0,
-          max: 100,
-        });
-        break;
-      case "--subpage-target":
-      case "--subpage-targets":
-        state.subpageTargets.push(...parseList(readValue()));
-        break;
-      case "--links":
-        state.generatedContents["extras"] = mergeObjects(
-          getRecord(state.generatedContents["extras"]),
-          {
-            links: parseInteger(readValue(), flag.name, { min: 0, max: 1000 }),
-          },
-        );
-        break;
-      case "--image-links":
-        state.generatedContents["extras"] = mergeObjects(
-          getRecord(state.generatedContents["extras"]),
-          {
-            imageLinks: parseInteger(readValue(), flag.name, { min: 0, max: 1000 }),
-          },
-        );
-        break;
-      case "--rich-image-links":
-        state.generatedContents["extras"] = mergeObjects(
-          getRecord(state.generatedContents["extras"]),
-          {
-            richImageLinks: parseInteger(readValue(), flag.name, { min: 0, max: 1000 }),
-          },
-        );
-        break;
-      case "--rich-links":
-        state.generatedContents["extras"] = mergeObjects(
-          getRecord(state.generatedContents["extras"]),
-          {
-            richLinks: parseInteger(readValue(), flag.name, { min: 0, max: 1000 }),
-          },
-        );
-        break;
-      case "--code-blocks":
-        state.generatedContents["extras"] = mergeObjects(
-          getRecord(state.generatedContents["extras"]),
-          {
-            codeBlocks: parseInteger(readValue(), flag.name, { min: 0, max: 1000 }),
-          },
-        );
-        break;
       case "--format":
         state.format = parseAllowed(readValue(), flag.name, OUTPUT_FORMATS) as OutputFormat;
         break;
@@ -353,12 +223,268 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
   return buildCommand(state, env);
 }
 
-export function helpText(): string {
+function parseExtractCli(argv: readonly string[], env: Environment): CliCommand {
+  const state = createParseState();
+  const ids: string[] = [];
+  const urls: string[] = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const current = argv[index];
+    if (current === undefined) {
+      continue;
+    }
+
+    if (current === "--") {
+      urls.push(...argv.slice(index + 1));
+      break;
+    }
+
+    if (!current.startsWith("-") || current === "-") {
+      urls.push(current);
+      continue;
+    }
+
+    const flag = splitFlag(current);
+    const readValue = (): string => {
+      if (flag.inlineValue !== undefined) {
+        return flag.inlineValue;
+      }
+
+      index += 1;
+      const value = argv[index];
+      if (value === undefined) {
+        throw new CliError(`${flag.name} requires a value`);
+      }
+
+      return value;
+    };
+
+    if (applyContentOption(flag.name, readValue, state)) {
+      continue;
+    }
+
+    switch (flag.name) {
+      case "-h":
+      case "--help":
+        return { kind: "help", topic: "extract" };
+      case "-V":
+      case "--version":
+        return { kind: "version" };
+      case "--api-key":
+        state.apiKey = readValue();
+        break;
+      case "--base-url":
+        state.baseUrl = readValue();
+        break;
+      case "--url":
+        urls.push(readValue());
+        break;
+      case "--urls":
+        urls.push(...parseList(readValue()));
+        break;
+      case "--id":
+        ids.push(readValue());
+        break;
+      case "--ids":
+        ids.push(...parseList(readValue()));
+        break;
+      case "--compliance":
+        state.generated["compliance"] = parseAllowed(readValue(), flag.name, COMPLIANCE_MODES);
+        break;
+      case "--body":
+        state.bodyBase = parseJsonObject(readValue(), flag.name);
+        break;
+      case "--format":
+        state.format = parseAllowed(readValue(), flag.name, OUTPUT_FORMATS) as OutputFormat;
+        break;
+      case "--json":
+        state.format = "json";
+        break;
+      case "--compact":
+        state.compact = true;
+        break;
+      case "--timeout":
+      case "--timeout-ms":
+        state.timeoutMs = parseInteger(readValue(), flag.name, { min: 1 });
+        break;
+      default:
+        throw new CliError(`Unknown extract option: ${flag.name}`);
+    }
+  }
+
+  if (urls.length > 0) {
+    state.generated["urls"] = uniqueStrings(urls);
+  }
+  if (ids.length > 0) {
+    state.generated["ids"] = uniqueStrings(ids);
+  }
+
+  Object.assign(state.generated, buildContents(state));
+  return buildExtractCommand(state, env);
+}
+
+function createParseState(): ParseState {
+  return {
+    additionalQueries: [],
+    compact: false,
+    contentModeExplicit: false,
+    excludeDomains: [],
+    excludeSections: [],
+    format: "json",
+    generated: {},
+    generatedContents: {},
+    highlightPreference: "auto",
+    includeDomains: [],
+    includeSections: [],
+    positionalQuery: [],
+    subpageTargets: [],
+    summaryEnabled: false,
+    summaryOptions: {},
+    textEnabled: false,
+    textOptions: {},
+    timeoutMs: 60_000,
+  };
+}
+
+function applyContentOption(name: string, readValue: () => string, state: ParseState): boolean {
+  switch (name) {
+    case "--highlights":
+      state.contentModeExplicit = true;
+      state.highlightPreference = "enabled";
+      return true;
+    case "--no-highlights":
+      state.contentModeExplicit = true;
+      state.highlightPreference = "disabled";
+      return true;
+    case "--highlight-query":
+      state.contentModeExplicit = true;
+      state.highlightPreference = "enabled";
+      state.highlightQuery = readValue();
+      return true;
+    case "--highlight-max-characters":
+      state.contentModeExplicit = true;
+      state.highlightPreference = "enabled";
+      state.highlightMaxCharacters = parseInteger(readValue(), name, {
+        min: 1,
+        max: 10_000,
+      });
+      return true;
+    case "--text":
+      state.contentModeExplicit = true;
+      state.textEnabled = true;
+      return true;
+    case "--text-max-characters":
+      state.contentModeExplicit = true;
+      state.textEnabled = true;
+      state.textOptions["maxCharacters"] = parseInteger(readValue(), name, {
+        min: 1,
+        max: 10_000,
+      });
+      return true;
+    case "--include-html-tags":
+      state.contentModeExplicit = true;
+      state.textEnabled = true;
+      state.textOptions["includeHtmlTags"] = true;
+      return true;
+    case "--text-verbosity":
+      state.contentModeExplicit = true;
+      state.textEnabled = true;
+      state.textOptions["verbosity"] = parseAllowed(readValue(), name, TEXT_VERBOSITIES);
+      return true;
+    case "--include-section":
+    case "--include-sections":
+      state.contentModeExplicit = true;
+      state.textEnabled = true;
+      state.includeSections.push(...parseAllowedList(readValue(), name, TEXT_SECTIONS));
+      return true;
+    case "--exclude-section":
+    case "--exclude-sections":
+      state.contentModeExplicit = true;
+      state.textEnabled = true;
+      state.excludeSections.push(...parseAllowedList(readValue(), name, TEXT_SECTIONS));
+      return true;
+    case "--summary":
+      state.contentModeExplicit = true;
+      state.summaryEnabled = true;
+      return true;
+    case "--summary-query":
+      state.contentModeExplicit = true;
+      state.summaryEnabled = true;
+      state.summaryOptions["query"] = readValue();
+      return true;
+    case "--summary-schema":
+      state.contentModeExplicit = true;
+      state.summaryEnabled = true;
+      state.summaryOptions["schema"] = parseJsonOrFile(readValue(), name);
+      return true;
+    case "--livecrawl-timeout":
+      state.generatedContents["livecrawlTimeout"] = parseInteger(readValue(), name, {
+        min: 1,
+        max: 90_000,
+      });
+      return true;
+    case "--max-age-hours":
+      state.generatedContents["maxAgeHours"] = parseInteger(readValue(), name, {
+        min: -1,
+        max: 720,
+      });
+      return true;
+    case "--subpages":
+      state.generatedContents["subpages"] = parseInteger(readValue(), name, {
+        min: 0,
+        max: 100,
+      });
+      return true;
+    case "--subpage-target":
+    case "--subpage-targets":
+      state.subpageTargets.push(...parseList(readValue()));
+      return true;
+    case "--links":
+      state.generatedContents["extras"] = mergeObjects(
+        getRecord(state.generatedContents["extras"]),
+        { links: parseInteger(readValue(), name, { min: 0, max: 1000 }) },
+      );
+      return true;
+    case "--image-links":
+      state.generatedContents["extras"] = mergeObjects(
+        getRecord(state.generatedContents["extras"]),
+        { imageLinks: parseInteger(readValue(), name, { min: 0, max: 1000 }) },
+      );
+      return true;
+    case "--rich-image-links":
+      state.generatedContents["extras"] = mergeObjects(
+        getRecord(state.generatedContents["extras"]),
+        { richImageLinks: parseInteger(readValue(), name, { min: 0, max: 1000 }) },
+      );
+      return true;
+    case "--rich-links":
+      state.generatedContents["extras"] = mergeObjects(
+        getRecord(state.generatedContents["extras"]),
+        { richLinks: parseInteger(readValue(), name, { min: 0, max: 1000 }) },
+      );
+      return true;
+    case "--code-blocks":
+      state.generatedContents["extras"] = mergeObjects(
+        getRecord(state.generatedContents["extras"]),
+        { codeBlocks: parseInteger(readValue(), name, { min: 0, max: 1000 }) },
+      );
+      return true;
+    default:
+      return false;
+  }
+}
+
+export function helpText(topic: HelpTopic = "search"): string {
+  if (topic === "extract") {
+    return extractHelpText();
+  }
+
   return `exa-search ${VERSION}
 
 Usage:
-  exa-search [options] <query...>
+  exa-search [search] [options] <query...>
   exa-search --query "latest AI policy updates" --num-results 5
+  exa-search extract [options] <url...>
 
 Authentication:
       --api-key <key>                    Exa API key. Defaults to EXA_API_KEY.
@@ -418,13 +544,77 @@ Output options:
 
 Examples:
   exa-search "recent quantum computing breakthroughs" --num-results 5
-  exa-search "AI regulation" --category news --include-domain reuters.com,bbc.com --start-published-date 2025-01-01
+  exa-search "AI regulation" --category news --include-domain reuters.com,bbc.com --start-published-date 2025-01-01T00:00:00Z
   exa-search "compare frontier model releases" --type deep --system-prompt "Prefer official sources" --output-schema @schema.json
 `;
 }
 
+function extractHelpText(): string {
+  return `exa-search ${VERSION}
+
+Usage:
+  exa-search extract [options] <url...>
+  exa-search extract --url <url> [--url <url>...]
+  exa-search extract --id <document-id> [--id <document-id>...]
+
+Authentication:
+      --api-key <key>                    Exa API key. Defaults to EXA_API_KEY.
+      --base-url <url>                   API base URL. Defaults to EXA_BASE_URL or https://api.exa.ai.
+
+Source options:
+      --url <url>                        URL to extract. Repeatable.
+      --urls <url[,..]>                  URLs to extract, maximum 100.
+      --id <document-id>                 Search document ID to extract. Repeatable.
+      --ids <id[,..]>                    Document IDs to extract, maximum 100.
+      --compliance <mode>                Enterprise compliance mode: hipaa.
+      --body <json|@file>                Base request JSON. CLI flags override matching fields.
+
+Content options:
+      --highlights                       Request highlights. Default unless --body or another content mode is used.
+      --no-highlights                    Do not request highlights.
+      --highlight-query <query>          Guide highlight selection.
+      --highlight-max-characters <n>     Cap highlight characters per URL.
+      --text                             Request full page text as markdown.
+      --text-max-characters <n>          Cap text characters.
+      --include-html-tags                Preserve HTML tags in text.
+      --text-verbosity <level>           compact, standard, or full.
+      --include-section <section[,..]>   Include only specific text sections. Repeatable.
+      --exclude-section <section[,..]>   Exclude specific text sections. Repeatable.
+      --summary                          Request LLM summary.
+      --summary-query <query>            Custom summary query.
+      --summary-schema <json|@file>      JSON schema for structured summary.
+      --max-age-hours <n>                0 forces livecrawl, -1 never livecrawls.
+      --livecrawl-timeout <ms>           Livecrawl timeout.
+      --subpages <n>                     Crawl subpages per URL.
+      --subpage-target <keyword[,..]>    Prioritize subpages. Repeatable.
+      --links <n>                        Extract URLs from each page.
+      --image-links <n>                  Extract image URLs from each page.
+      --rich-image-links <n>             Extract rich image links from each page.
+      --rich-links <n>                   Extract rich links from each page.
+      --code-blocks <n>                  Extract code blocks from each page.
+
+Output options:
+      --format <json|text|urls>          Output format. Default: json.
+      --json                             Alias for --format json.
+      --compact                          Minify JSON output.
+      --timeout <ms>                     Request timeout. Default: 60000.
+  -h, --help                             Show extract help.
+  -V, --version                          Show version.
+
+Examples:
+  exa-search extract https://exa.ai/docs --highlights
+  exa-search extract https://example.com --text --text-max-characters 5000
+  exa-search extract --id https://arxiv.org/abs/2307.06435 --summary
+`;
+}
+
 export async function searchJson(options: CliRunOptions): Promise<unknown> {
-  const response = await postSearch(options, "application/json");
+  const response = await postEndpoint(options, "search", "application/json");
+  return response.json();
+}
+
+export async function contentsJson(options: CliRunOptions): Promise<unknown> {
+  const response = await postEndpoint(options, "contents", "application/json");
   return response.json();
 }
 
@@ -496,6 +686,10 @@ export function formatResponse(response: unknown, format: OutputFormat, compact:
   }
 }
 
+export function hasContentErrors(response: unknown): boolean {
+  return extractStatuses(response).some((status) => status["status"] === "error");
+}
+
 function buildCommand(state: ParseState, env: Environment): CliCommand {
   if (state.query !== undefined && state.positionalQuery.length > 0) {
     throw new CliError("Use either positional query text or --query, not both");
@@ -526,7 +720,21 @@ function buildCommand(state: ParseState, env: Environment): CliCommand {
 
   const request = mergeObjects(state.bodyBase ?? {}, state.generated);
   validateRequest(request);
+  return buildRunCommand(state, env, "search", request);
+}
 
+function buildExtractCommand(state: ParseState, env: Environment): CliCommand {
+  const request = mergeObjects(state.bodyBase ?? {}, state.generated);
+  validateContentsRequest(request);
+  return buildRunCommand(state, env, "contents", request);
+}
+
+function buildRunCommand(
+  state: ParseState,
+  env: Environment,
+  endpoint: ApiEndpoint,
+  request: Record<string, unknown>,
+): CliCommand {
   const apiKey = state.apiKey ?? env["EXA_API_KEY"];
   if (apiKey === undefined || apiKey.trim() === "") {
     throw new CliError("Missing API key. Set EXA_API_KEY or pass --api-key.");
@@ -540,9 +748,10 @@ function buildCommand(state: ParseState, env: Environment): CliCommand {
       apiKey,
       baseUrl,
       compact: state.compact,
+      endpoint,
       format: state.format,
       request,
-      stream: request["stream"] === true,
+      stream: endpoint === "search" && request["stream"] === true,
       timeoutMs: state.timeoutMs,
     },
   };
@@ -670,139 +879,179 @@ function validateRequest(request: Record<string, unknown>): void {
   }
 }
 
+function validateContentsRequest(request: Record<string, unknown>): void {
+  const hasIds = request["ids"] !== undefined;
+  const hasUrls = request["urls"] !== undefined;
+  if (hasIds === hasUrls) {
+    throw new CliError("Provide exactly one of ids or urls");
+  }
+
+  const sourceField = hasIds ? "ids" : "urls";
+  const source = request[sourceField];
+  if (!Array.isArray(source)) {
+    throw new CliError(`${sourceField} must be an array of strings`);
+  }
+  validateStringArray(source, sourceField, {
+    minItems: 1,
+    maxItems: 100,
+    minItemLength: 1,
+    maxItemLength: 2048,
+  });
+
+  if (isPresent(request["compliance"])) {
+    assertAllowedValue(request["compliance"], "compliance", COMPLIANCE_MODES);
+  }
+
+  validateContentsOptions(request, "");
+}
+
 function validateContents(value: unknown): void {
+  validateContentsOptions(value, "contents");
+}
+
+function validateContentsOptions(value: unknown, prefix: string): void {
   if (value === null) {
     return;
   }
 
   if (!isRecord(value)) {
-    throw new CliError("contents must be an object or null");
+    throw new CliError(`${prefix || "contents options"} must be an object or null`);
   }
 
-  validateBooleanOrObject(value["highlights"], "contents.highlights");
-  validateBooleanOrObject(value["text"], "contents.text");
-  validateObjectOrNull(value["summary"], "contents.summary");
-  validateTextOptions(value["text"]);
-  validateHighlightOptions(value["highlights"]);
-  validateSummaryOptions(value["summary"]);
+  const highlightsField = nestedField(prefix, "highlights");
+  const textField = nestedField(prefix, "text");
+  const summaryField = nestedField(prefix, "summary");
+  validateBooleanOrObject(value["highlights"], highlightsField);
+  validateBooleanOrObject(value["text"], textField);
+  validateObjectOrNull(value["summary"], summaryField);
+  validateTextOptions(value["text"], textField);
+  validateHighlightOptions(value["highlights"], highlightsField);
+  validateSummaryOptions(value["summary"], summaryField);
 
+  const livecrawlTimeoutField = nestedField(prefix, "livecrawlTimeout");
   if (isPresent(value["livecrawlTimeout"])) {
-    assertIntegerValue(value["livecrawlTimeout"], "contents.livecrawlTimeout", {
+    assertIntegerValue(value["livecrawlTimeout"], livecrawlTimeoutField, {
       min: 1,
       max: 90_000,
     });
   }
 
+  const maxAgeHoursField = nestedField(prefix, "maxAgeHours");
   if (isPresent(value["maxAgeHours"])) {
-    assertIntegerValue(value["maxAgeHours"], "contents.maxAgeHours", { min: -1, max: 720 });
+    assertIntegerValue(value["maxAgeHours"], maxAgeHoursField, { min: -1, max: 720 });
   }
 
+  const subpagesField = nestedField(prefix, "subpages");
   if (isPresent(value["subpages"])) {
-    assertIntegerValue(value["subpages"], "contents.subpages", { min: 0, max: 100 });
+    assertIntegerValue(value["subpages"], subpagesField, { min: 0, max: 100 });
   }
 
-  validateSubpageTarget(value["subpageTarget"]);
-  validateExtras(value["extras"]);
+  validateSubpageTarget(value["subpageTarget"], nestedField(prefix, "subpageTarget"));
+  validateExtras(value["extras"], nestedField(prefix, "extras"));
 }
 
-function validateTextOptions(value: unknown): void {
+function validateTextOptions(value: unknown, field: string): void {
   if (!isRecord(value)) {
     return;
   }
 
   if (isPresent(value["maxCharacters"])) {
-    assertIntegerValue(value["maxCharacters"], "contents.text.maxCharacters", {
+    assertIntegerValue(value["maxCharacters"], `${field}.maxCharacters`, {
       min: 1,
       max: 10_000,
     });
   }
 
   if (isPresent(value["includeHtmlTags"]) && typeof value["includeHtmlTags"] !== "boolean") {
-    throw new CliError("contents.text.includeHtmlTags must be a boolean or null");
+    throw new CliError(`${field}.includeHtmlTags must be a boolean or null`);
   }
 
   if (isPresent(value["verbosity"])) {
-    assertAllowedValue(value["verbosity"], "contents.text.verbosity", TEXT_VERBOSITIES);
+    assertAllowedValue(value["verbosity"], `${field}.verbosity`, TEXT_VERBOSITIES);
   }
 
-  validateStringArray(value["includeSections"], "contents.text.includeSections", {
+  validateStringArray(value["includeSections"], `${field}.includeSections`, {
     allowed: TEXT_SECTIONS,
   });
-  validateStringArray(value["excludeSections"], "contents.text.excludeSections", {
+  validateStringArray(value["excludeSections"], `${field}.excludeSections`, {
     allowed: TEXT_SECTIONS,
   });
 }
 
-function validateHighlightOptions(value: unknown): void {
+function validateHighlightOptions(value: unknown, field: string): void {
   if (!isRecord(value)) {
     return;
   }
 
   if (isPresent(value["query"]) && typeof value["query"] !== "string") {
-    throw new CliError("contents.highlights.query must be a string or null");
+    throw new CliError(`${field}.query must be a string or null`);
   }
 
   if (isPresent(value["maxCharacters"])) {
-    assertIntegerValue(value["maxCharacters"], "contents.highlights.maxCharacters", {
+    assertIntegerValue(value["maxCharacters"], `${field}.maxCharacters`, {
       min: 1,
       max: 10_000,
     });
   }
 
-  for (const field of ["numSentences", "highlightsPerUrl"]) {
-    if (isPresent(value[field])) {
-      assertIntegerValue(value[field], `contents.highlights.${field}`, { min: 1 });
+  for (const option of ["numSentences", "highlightsPerUrl"]) {
+    if (isPresent(value[option])) {
+      assertIntegerValue(value[option], `${field}.${option}`, { min: 1 });
     }
   }
 }
 
-function validateSummaryOptions(value: unknown): void {
+function validateSummaryOptions(value: unknown, field: string): void {
   if (!isRecord(value)) {
     return;
   }
 
   if (isPresent(value["query"]) && typeof value["query"] !== "string") {
-    throw new CliError("contents.summary.query must be a string or null");
+    throw new CliError(`${field}.query must be a string or null`);
   }
 
   if (isPresent(value["schema"]) && !isRecord(value["schema"])) {
-    throw new CliError("contents.summary.schema must be an object or null");
+    throw new CliError(`${field}.schema must be an object or null`);
   }
 }
 
-function validateSubpageTarget(value: unknown): void {
+function validateSubpageTarget(value: unknown, field: string): void {
   if (!isPresent(value)) {
     return;
   }
 
   if (typeof value === "string") {
     if (value.length < 1 || value.length > 100) {
-      throw new CliError("contents.subpageTarget must contain between 1 and 100 characters");
+      throw new CliError(`${field} must contain between 1 and 100 characters`);
     }
     return;
   }
 
-  validateStringArray(value, "contents.subpageTarget", {
+  validateStringArray(value, field, {
     maxItems: 100,
     minItemLength: 1,
     maxItemLength: 100,
   });
 }
 
-function validateExtras(value: unknown): void {
+function validateExtras(value: unknown, field: string): void {
   if (!isPresent(value)) {
     return;
   }
 
   if (!isRecord(value)) {
-    throw new CliError("contents.extras must be an object or null");
+    throw new CliError(`${field} must be an object or null`);
   }
 
-  for (const field of ["links", "imageLinks", "richImageLinks", "richLinks", "codeBlocks"]) {
-    if (isPresent(value[field])) {
-      assertIntegerValue(value[field], `contents.extras.${field}`, { min: 0, max: 1000 });
+  for (const option of ["links", "imageLinks", "richImageLinks", "richLinks", "codeBlocks"]) {
+    if (isPresent(value[option])) {
+      assertIntegerValue(value[option], `${field}.${option}`, { min: 0, max: 1000 });
     }
   }
+}
+
+function nestedField(prefix: string, field: string): string {
+  return prefix === "" ? field : `${prefix}.${field}`;
 }
 
 function validateOutputSchema(value: unknown): void {
@@ -857,7 +1106,15 @@ function validateObjectOrNull(value: unknown, field: string): void {
 }
 
 async function postSearch(options: CliRunOptions, accept: string): Promise<Response> {
-  const response = await fetch(searchUrl(options.baseUrl), {
+  return postEndpoint(options, "search", accept);
+}
+
+async function postEndpoint(
+  options: CliRunOptions,
+  endpoint: ApiEndpoint,
+  accept: string,
+): Promise<Response> {
+  const response = await fetch(endpointUrl(options.baseUrl, endpoint), {
     body: JSON.stringify(options.request),
     headers: {
       accept,
@@ -991,6 +1248,35 @@ function formatTextResponse(response: unknown): string {
     lines.push("");
   });
 
+  const statuses = extractStatuses(response);
+  if (statuses.length > 0) {
+    lines.push("Statuses:");
+    for (const status of statuses) {
+      const id = stringField(status, "id") ?? "Unknown source";
+      const state = stringField(status, "status") ?? "unknown";
+      const source = stringField(status, "source");
+      let line = `- ${state}: ${id}`;
+      if (source !== undefined) {
+        line += ` (${source})`;
+      }
+      if (isRecord(status["error"])) {
+        const tag = stringField(status["error"], "tag");
+        const httpStatusCode = status["error"]["httpStatusCode"];
+        const details = [
+          tag,
+          typeof httpStatusCode === "number" ? `HTTP ${httpStatusCode}` : undefined,
+        ]
+          .filter((value) => value !== undefined)
+          .join(", ");
+        if (details !== "") {
+          line += ` — ${details}`;
+        }
+      }
+      lines.push(line);
+    }
+    lines.push("");
+  }
+
   if (isRecord(response)) {
     const requestId = stringField(response, "requestId");
     if (requestId !== undefined) {
@@ -1011,6 +1297,14 @@ function extractResults(response: unknown): Record<string, unknown>[] {
   }
 
   return response["results"].filter(isRecord);
+}
+
+function extractStatuses(response: unknown): Record<string, unknown>[] {
+  if (!isRecord(response) || !Array.isArray(response["statuses"])) {
+    return [];
+  }
+
+  return response["statuses"].filter(isRecord);
 }
 
 function formatContentValue(value: unknown): string {
@@ -1293,11 +1587,11 @@ function stringField(record: Record<string, unknown>, field: string): string | u
   return typeof value === "string" && value !== "" ? value : undefined;
 }
 
-function searchUrl(baseUrl: string): string {
+function endpointUrl(baseUrl: string, endpoint: ApiEndpoint): string {
   const trimmed = baseUrl.trim();
-  if (trimmed.endsWith("/search")) {
+  if (trimmed.endsWith(`/${endpoint}`)) {
     return trimmed;
   }
 
-  return new URL("search", trimmed.endsWith("/") ? trimmed : `${trimmed}/`).toString();
+  return new URL(endpoint, trimmed.endsWith("/") ? trimmed : `${trimmed}/`).toString();
 }

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import {
   CliError,
+  contentsJson,
   formatResponse,
+  hasContentErrors,
   helpText,
   parseCli,
   searchJson,
@@ -14,7 +16,7 @@ async function main(): Promise<void> {
     const command = parseCli(process.argv.slice(2), process.env);
 
     if (command.kind === "help") {
-      process.stdout.write(`${helpText()}\n`);
+      process.stdout.write(`${helpText(command.topic)}\n`);
       return;
     }
 
@@ -29,10 +31,16 @@ async function main(): Promise<void> {
       return;
     }
 
-    const response = await searchJson(command.options);
+    const response =
+      command.options.endpoint === "contents"
+        ? await contentsJson(command.options)
+        : await searchJson(command.options);
     process.stdout.write(
       `${formatResponse(response, command.options.format, command.options.compact)}\n`,
     );
+    if (command.options.endpoint === "contents" && hasContentErrors(response)) {
+      process.exitCode = 2;
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`exa-search: ${message}\n`);

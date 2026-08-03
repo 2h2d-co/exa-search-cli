@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { CliError, formatResponse, helpText, parseCli, VERSION } from "../src/core.ts";
+import {
+  CliError,
+  formatResponse,
+  hasContentErrors,
+  helpText,
+  parseCli,
+  VERSION,
+} from "../src/core.ts";
 
 const env = { EXA_API_KEY: "test-key" };
 
@@ -20,6 +27,7 @@ void test("builds a default highlights request from positional query", () => {
   });
   assert.equal(command.options.apiKey, "test-key");
   assert.equal(command.options.baseUrl, "https://api.exa.ai");
+  assert.equal(command.options.endpoint, "search");
 });
 
 void test("uses explicit content modes instead of default highlights", () => {
@@ -234,6 +242,114 @@ void test("formats urls output", () => {
   );
 
   assert.equal(output, "https://example.com/one\nhttps://example.com/two");
+});
+
+void test("builds a default highlights extraction request from positional URLs", () => {
+  const command = parseCli(["extract", "https://example.com/one", "https://example.com/two"], env);
+  assert.equal(command.kind, "run");
+
+  if (command.kind !== "run") {
+    return;
+  }
+
+  assert.equal(command.options.endpoint, "contents");
+  assert.equal(command.options.stream, false);
+  assert.deepEqual(command.options.request, {
+    highlights: true,
+    urls: ["https://example.com/one", "https://example.com/two"],
+  });
+});
+
+void test("builds top-level OpenAPI content options for document IDs", () => {
+  const command = parseCli(
+    [
+      "extract",
+      "--id",
+      "document-id",
+      "--text-max-characters",
+      "10000",
+      "--summary",
+      "--highlight-query",
+      "key findings",
+      "--links",
+      "1000",
+      "--max-age-hours",
+      "720",
+    ],
+    env,
+  );
+  assert.equal(command.kind, "run");
+
+  if (command.kind !== "run") {
+    return;
+  }
+
+  assert.deepEqual(command.options.request, {
+    extras: { links: 1000 },
+    highlights: { query: "key findings" },
+    ids: ["document-id"],
+    maxAgeHours: 720,
+    summary: {},
+    text: { maxCharacters: 10000 },
+  });
+});
+
+void test("uses a raw extraction body without adding default highlights", () => {
+  const command = parseCli(["extract", "--body", '{"ids":["document-id"],"text":true}'], env);
+  assert.equal(command.kind, "run");
+
+  if (command.kind !== "run") {
+    return;
+  }
+
+  assert.deepEqual(command.options.request, { ids: ["document-id"], text: true });
+});
+
+void test("rejects extraction requests outside the OpenAPI contract", () => {
+  const tooManyUrls = Array.from({ length: 101 }, (_, index) => `https://example.com/${index}`);
+  const invalidArguments = [
+    ["extract"],
+    ["extract", "--stream", "https://example.com"],
+    ["extract", "--body", '{"ids":["id"],"urls":["https://example.com"]}'],
+    ["extract", "--body", '{"urls":[]}'],
+    ["extract", "--body", '{"urls":[""]}'],
+    ["extract", "--body", JSON.stringify({ urls: ["x".repeat(2049)] })],
+    ["extract", "--body", JSON.stringify({ urls: tooManyUrls })],
+    ["extract", "--body", '{"urls":["https://example.com"],"summary":true}'],
+  ];
+
+  for (const arguments_ of invalidArguments) {
+    assert.throws(() => parseCli(arguments_, env), CliError, JSON.stringify(arguments_));
+  }
+});
+
+void test("documents the extraction command", () => {
+  const command = parseCli(["extract", "--help"], {});
+  assert.deepEqual(command, { kind: "help", topic: "extract" });
+  const help = helpText("extract");
+  assert.match(help, /exa-search extract/);
+  assert.match(help, /--url/);
+  assert.match(help, /--id/);
+  assert.doesNotMatch(help, /--stream/);
+});
+
+void test("formats and detects per-URL extraction errors", () => {
+  const response = {
+    results: [],
+    statuses: [
+      { id: "https://example.com", source: "cached", status: "success" },
+      {
+        error: { httpStatusCode: 404, tag: "CRAWL_NOT_FOUND" },
+        id: "https://example.com/missing",
+        status: "error",
+      },
+    ],
+  };
+
+  assert.equal(hasContentErrors(response), true);
+  const output = formatResponse(response, "text", false);
+  assert.match(output, /success: https:\/\/example\.com \(cached\)/);
+  assert.match(output, /error: https:\/\/example\.com\/missing — CRAWL_NOT_FOUND, HTTP 404/);
 });
 
 void test("formats requested text alongside summaries and highlights", () => {

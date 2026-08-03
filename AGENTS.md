@@ -1,6 +1,6 @@
 # exa-search-cli Project Instructions
 
-exa-search-cli is an unofficial, zero-runtime-dependency CLI for the Exa Search API.
+exa-search-cli is an unofficial, zero-runtime-dependency CLI for the Exa Search and Contents APIs.
 
 ## Conventions
 

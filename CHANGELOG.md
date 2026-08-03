@@ -9,7 +9,8 @@ Current changes are tracked under `Unreleased`. The historical alpha releases pr
 ### Added
 
 - OpenAPI-backed extraction flags for rich image links, rich links, and code blocks.
-- Live Exa API integration coverage for publication summaries, JSON stream fallback, synthesized streaming, and API validation errors.
+- `exa-search extract` command for the Exa Contents API, including URL and document-ID inputs, top-level content modes, freshness, subpages, extras, output formats, and per-URL status handling.
+- Live Exa API integration coverage for Search and Contents requests, synthesized streaming, response statuses, and API validation errors.
 
 ### Changed
 
