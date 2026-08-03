@@ -11,4 +11,4 @@ exa-search-cli is an unofficial, zero-runtime-dependency CLI for the Exa Search 
   - update the package version;
   - move `Unreleased` changelog entries into the new release section;
   - commit with `release: vX.Y.Z` as the commit message;
-  - tag the release with the matching `vX.Y.Z` tag.
+  - create a lightweight tag named `vX.Y.Z` with `git tag vX.Y.Z`; do not use `git tag -a`, `git tag -s`, `git tag -m`, or `cog bump --annotated`.

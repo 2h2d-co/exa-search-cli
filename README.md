@@ -295,7 +295,7 @@ EXA_API_KEY="..." npm run test:integration
 
 The integration suite calls the live Exa API and incurs normal API charges. GitHub Actions reads the same key from the `EXA_API_KEY` repository secret.
 
-Stable and prerelease `v<version>` tags trigger the shared CI release flow. CI validates the release commit and tag, runs checks and tests, previews the package, and stages it on npm with provenance. Stable versions use `latest`; prereleases derive the npm dist-tag from their first prerelease identifier.
+Stable and prerelease `v<version>` tags trigger the shared CI release flow. CI validates the release commit and tag, runs checks and tests, previews the package, and stages it on npm with provenance. Stable versions use `latest`; prereleases derive the npm dist-tag from their first prerelease identifier. Release tags must be lightweight tags. Create one with `git tag v<version>`; do not use `git tag -a`, `git tag -s`, `git tag -m`, or `cog bump --annotated`.
 
 The project uses `oxfmt`, `oxlint`, TypeScript 7 with `erasableSyntaxOnly`, and publishes compiled JavaScript without install/postinstall scripts.
 
