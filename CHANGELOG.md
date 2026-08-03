@@ -9,6 +9,7 @@ Current changes are tracked under `Unreleased`. The historical alpha releases pr
 ### Added
 
 - OpenAPI-backed extraction flags for rich image links, rich links, and code blocks.
+- Live Exa API integration coverage for publication summaries, JSON stream fallback, synthesized streaming, and API validation errors.
 
 ### Changed
 

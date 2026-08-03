@@ -66,9 +66,12 @@ mise install
 npm install
 npm run check
 npm test
+npm run test:integration
 npm run build
 npm run pack:dry
 ```
+
+`npm run test:integration` calls the live Exa API using `EXA_API_KEY`, incurs normal API charges, and skips when the key is unset. GitHub Actions reads the same key from the `EXA_API_KEY` repository or environment secret.
 
 Stable and prerelease `v<version>` tags trigger the shared CI release flow. CI validates the release commit and tag, runs checks and tests, previews the package, and stages it on npm with provenance. Stable versions use `latest`; prereleases derive the npm dist-tag from their first prerelease identifier.
 
