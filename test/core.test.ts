@@ -3,221 +3,622 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   CliError,
+  contentResponseErrors,
   formatResponse,
   hasContentErrors,
   helpText,
   parseCli,
+  requestPreview,
   VERSION,
 } from "../src/core.ts";
+import { requestSchema } from "../src/schema.ts";
 
 const env = { EXA_API_KEY: "test-key" };
 
-void test("builds a default highlights request from positional query", () => {
-  const command = parseCli(["--num-results", "3", "latest", "LLM", "news"], env);
-  assert.equal(command.kind, "run");
+void test("requires explicit commands and applies bounded Search defaults", () => {
+  assert.throws(
+    () => parseCli(["recent", "LLM", "news"], env),
+    (error: unknown) => error instanceof CliError && error.message.includes("Unknown command"),
+  );
 
+  const command = parseCli(["search", "recent", "LLM", "news"], env);
+  assert.equal(command.kind, "run");
   if (command.kind !== "run") {
     return;
   }
 
+  assert.equal(command.endpoint, "search");
+  assert.equal(command.options.endpoint, "search");
   assert.deepEqual(command.options.request, {
     contents: { highlights: true },
-    numResults: 3,
-    query: "latest LLM news",
+    numResults: 5,
+    query: "recent LLM news",
+    type: "auto",
   });
   assert.equal(command.options.apiKey, "test-key");
   assert.equal(command.options.baseUrl, "https://api.exa.ai");
-  assert.equal(command.options.endpoint, "search");
+  assert.equal(command.options.compact, undefined);
+  assert.equal(command.options.failOnErrors, false);
+});
+
+void test("supports help, version, schemas, and rejects unknown topics", () => {
+  assert.deepEqual(parseCli(["-h"], {}), { kind: "help" });
+  assert.deepEqual(parseCli(["search", "--help"], {}), {
+    endpoint: "search",
+    kind: "help",
+  });
+  assert.deepEqual(parseCli(["help", "extract"], {}), {
+    endpoint: "extract",
+    kind: "help",
+  });
+  assert.deepEqual(parseCli(["-V"], {}), { kind: "version" });
+  assert.deepEqual(parseCli(["schema", "search"], {}), {
+    endpoint: "search",
+    kind: "schema",
+  });
+  assert.throws(
+    () => parseCli(["help", "unknown"], {}),
+    (error: unknown) => error instanceof CliError && error.message.includes("Unknown help topic"),
+  );
 });
 
 void test("uses explicit content modes instead of default highlights", () => {
-  const command = parseCli(
-    ["--query", "architecture", "--text", "--text-max-characters", "5000"],
+  const text = parseCli(
+    ["search", "--query", "architecture", "--text", "--text-max-characters", "5000"],
     env,
   );
-  assert.equal(command.kind, "run");
-
-  if (command.kind !== "run") {
-    return;
+  assert.equal(text.kind, "run");
+  if (text.kind === "run") {
+    assert.deepEqual(text.options.request, {
+      contents: { text: { maxCharacters: 5000 } },
+      numResults: 5,
+      query: "architecture",
+      type: "auto",
+    });
   }
 
-  assert.deepEqual(command.options.request, {
-    contents: { text: { maxCharacters: 5000 } },
-    query: "architecture",
-  });
+  const summary = parseCli(["search", "architecture", "--summary"], env);
+  assert.equal(summary.kind, "run");
+  if (summary.kind === "run") {
+    assert.deepEqual(summary.options.request["contents"], { summary: {} });
+  }
+
+  const combined = parseCli(["search", "architecture", "--text", "--highlights"], env);
+  assert.equal(combined.kind, "run");
+  if (combined.kind === "run") {
+    assert.deepEqual(combined.options.request["contents"], {
+      highlights: true,
+      text: { maxCharacters: 10_000 },
+    });
+  }
 });
 
-void test("merges body as a base request and lets cli flags override", () => {
-  const command = parseCli(
+void test("adds highlights to body requests without a content mode and preserves explicit modes", () => {
+  const defaulted = parseCli(
     [
+      "search",
       "--body",
-      '{"query":"from body","numResults":2,"contents":{"summary":{}}}',
+      '{"query":"from body","contents":{"maxAgeHours":24}}',
       "--num-results",
-      "5",
-      "--max-age-hours",
-      "0",
+      "3",
     ],
     env,
   );
-  assert.equal(command.kind, "run");
+  assert.equal(defaulted.kind, "run");
+  if (defaulted.kind === "run") {
+    assert.deepEqual(defaulted.options.request, {
+      contents: {
+        highlights: true,
+        maxAgeHours: 24,
+      },
+      numResults: 3,
+      query: "from body",
+      type: "auto",
+    });
+  }
 
+  const explicit = parseCli(
+    [
+      "search",
+      "--body",
+      '{"query":"from body","numResults":9,"type":"fast","contents":{"summary":{}}}',
+    ],
+    env,
+  );
+  assert.equal(explicit.kind, "run");
+  if (explicit.kind === "run") {
+    assert.deepEqual(explicit.options.request, {
+      contents: { summary: {} },
+      numResults: 9,
+      query: "from body",
+      type: "fast",
+    });
+  }
+
+  const disabled = parseCli(["search", "--body", '{"query":"metadata only","contents":null}'], env);
+  assert.equal(disabled.kind, "run");
+  if (disabled.kind === "run") {
+    assert.equal(disabled.options.request["contents"], null);
+  }
+});
+
+void test("preserves exact singular values and accepts plural JSON arrays", () => {
+  const search = parseCli(
+    [
+      "search",
+      "Federal Reserve, SEC guidance",
+      "--include-domain",
+      "exa.ai/docs,reference",
+      "--include-domains",
+      '["example.com/docs","*.substack.com"]',
+      "--additional-queries",
+      '["Fed policy","SEC guidance"]',
+      "--type",
+      "deep",
+    ],
+    env,
+  );
+  assert.equal(search.kind, "run");
+  if (search.kind === "run") {
+    assert.equal(search.options.request["query"], "Federal Reserve, SEC guidance");
+    assert.deepEqual(search.options.request["includeDomains"], [
+      "exa.ai/docs,reference",
+      "example.com/docs",
+      "*.substack.com",
+    ]);
+    assert.deepEqual(search.options.request["additionalQueries"], ["Fed policy", "SEC guidance"]);
+  }
+
+  const extract = parseCli(
+    [
+      "extract",
+      "--url",
+      "https://example.com/reports/a,b",
+      "--urls",
+      '["https://example.com/a","https://example.com/b"]',
+    ],
+    env,
+  );
+  assert.equal(extract.kind, "run");
+  if (extract.kind === "run") {
+    assert.deepEqual(extract.options.request["urls"], [
+      "https://example.com/reports/a,b",
+      "https://example.com/a",
+      "https://example.com/b",
+    ]);
+  }
+});
+
+void test("accepts request bodies and Search queries from standard input once", () => {
+  const search = parseCli(
+    ["search", "--query", "-", "--dry-run"],
+    {},
+    { readStdin: () => "current Exa Search API guidance\n" },
+  );
+  assert.equal(search.kind, "run");
+  if (search.kind === "run") {
+    assert.equal(search.options.apiKey, undefined);
+    assert.equal(search.options.request["query"], "current Exa Search API guidance");
+  }
+
+  const body = parseCli(
+    ["search", "--body", "@-", "--dry-run"],
+    {},
+    { readStdin: () => '{"query":"from stdin"}' },
+  );
+  assert.equal(body.kind, "run");
+  if (body.kind === "run") {
+    assert.equal(body.options.request["query"], "from stdin");
+  }
+
+  assert.throws(
+    () =>
+      parseCli(
+        ["search", "--body", "@-", "--include-domains", "@-", "--dry-run"],
+        {},
+        { readStdin: () => '{"query":"from stdin"}' },
+      ),
+    (error: unknown) => error instanceof CliError && error.message.includes("only be read once"),
+  );
+});
+
+void test("builds redacted dry-run previews without authentication", () => {
+  const command = parseCli(["search", "Exa Search API", "--api-key", "secret", "--dry-run"], {});
+  assert.equal(command.kind, "run");
   if (command.kind !== "run") {
     return;
   }
 
-  assert.deepEqual(command.options.request, {
-    contents: {
-      maxAgeHours: 0,
-      summary: {},
+  const preview = requestPreview(command.options);
+  assert.deepEqual(preview, {
+    endpoint: "search",
+    method: "POST",
+    request: {
+      contents: { highlights: true },
+      numResults: 5,
+      query: "Exa Search API",
+      type: "auto",
     },
-    numResults: 5,
-    query: "from body",
+    timeout_ms: 60_000,
+    url: "https://api.exa.ai/search",
   });
+  assert.doesNotMatch(JSON.stringify(preview), /secret/);
 });
 
-void test("uses OpenAPI category, summary, extras, and boundary values", () => {
+void test("builds current Search filters, synthesis, and advanced content options", () => {
   const command = parseCli(
     [
-      "research",
+      "search",
+      "compare frontier model releases",
+      "--type",
+      "deep-reasoning",
+      "--num-results",
+      "10",
       "--category",
-      "publication",
-      "--summary",
+      "news",
+      "--user-location",
+      "gb",
+      "--include-domain",
+      "openai.com",
+      "--start-published-date",
+      "2026-01-01T00:00:00Z",
+      "--end-published-date",
+      "2026-08-03T00:00:00Z",
+      "--moderation",
       "--additional-query",
-      "papers",
+      "frontier model launches",
+      "--system-prompt",
+      "Prefer official sources.",
+      "--output-schema",
+      '{"type":"text","description":"One paragraph."}',
+      "--highlights",
+      "--highlight-query",
+      "release claims and dates",
+      "--highlight-max-characters",
+      "5000",
       "--text-max-characters",
       "10000",
-      "--highlight-max-characters",
-      "10000",
-      "--livecrawl-timeout",
-      "90000",
+      "--include-html-tags",
+      "--text-verbosity",
+      "full",
+      "--include-section",
+      "body",
+      "--include-sections",
+      '["metadata"]',
+      "--exclude-section",
+      "navigation",
+      "--exclude-sections",
+      '["footer"]',
+      "--summary-query",
+      "Summarize the release.",
+      "--summary-schema",
+      '{"type":"object"}',
       "--max-age-hours",
-      "720",
+      "24",
+      "--livecrawl-timeout",
+      "12000",
       "--subpages",
-      "100",
+      "5",
+      "--subpage-target",
+      "api",
+      "--subpage-targets",
+      '["models","pricing"]',
       "--links",
-      "1000",
+      "3",
       "--image-links",
-      "1000",
+      "2",
       "--rich-image-links",
-      "1000",
+      "1",
       "--rich-links",
-      "1000",
+      "1",
       "--code-blocks",
-      "1000",
+      "4",
       "--compliance",
       "hipaa",
+      "--no-stream",
     ],
     env,
   );
   assert.equal(command.kind, "run");
-
   if (command.kind !== "run") {
     return;
   }
 
   assert.deepEqual(command.options.request, {
-    additionalQueries: ["papers"],
-    category: "publication",
+    additionalQueries: ["frontier model launches"],
+    category: "news",
     compliance: "hipaa",
     contents: {
       extras: {
-        codeBlocks: 1000,
-        imageLinks: 1000,
-        links: 1000,
-        richImageLinks: 1000,
-        richLinks: 1000,
+        codeBlocks: 4,
+        imageLinks: 2,
+        links: 3,
+        richImageLinks: 1,
+        richLinks: 1,
       },
-      highlights: { maxCharacters: 10000 },
-      livecrawlTimeout: 90000,
-      maxAgeHours: 720,
-      subpages: 100,
-      summary: {},
-      text: { maxCharacters: 10000 },
+      highlights: {
+        maxCharacters: 5000,
+        query: "release claims and dates",
+      },
+      livecrawlTimeout: 12_000,
+      maxAgeHours: 24,
+      subpageTarget: ["api", "models", "pricing"],
+      subpages: 5,
+      summary: {
+        query: "Summarize the release.",
+        schema: { type: "object" },
+      },
+      text: {
+        excludeSections: ["navigation", "footer"],
+        includeHtmlTags: true,
+        includeSections: ["body", "metadata"],
+        maxCharacters: 10_000,
+        verbosity: "full",
+      },
     },
-    query: "research",
+    endPublishedDate: "2026-08-03T00:00:00Z",
+    includeDomains: ["openai.com"],
+    moderation: true,
+    numResults: 10,
+    outputSchema: { description: "One paragraph.", type: "text" },
+    query: "compare frontier model releases",
+    startPublishedDate: "2026-01-01T00:00:00Z",
+    stream: false,
+    systemPrompt: "Prefer official sources.",
+    type: "deep-reasoning",
+    userLocation: "GB",
   });
 });
 
-void test("rejects unsupported filters for company and people categories", () => {
+void test("builds bounded Extract requests and defaults to strict partial failures", () => {
+  const command = parseCli(
+    [
+      "extract",
+      "https://example.com/a",
+      "--url",
+      "https://example.com/b",
+      "--highlight-query",
+      "pricing changes",
+      "--max-age-hours",
+      "0",
+      "--livecrawl-timeout",
+      "15000",
+      "--temp-output",
+      "--allow-partial",
+    ],
+    env,
+  );
+  assert.equal(command.kind, "run");
+  if (command.kind !== "run") {
+    return;
+  }
+
+  assert.equal(command.endpoint, "extract");
+  assert.equal(command.options.endpoint, "contents");
+  assert.equal(command.options.failOnErrors, false);
+  assert.equal(command.options.temporaryOutput, true);
+  assert.deepEqual(command.options.request, {
+    highlights: { query: "pricing changes" },
+    livecrawlTimeout: 15_000,
+    maxAgeHours: 0,
+    urls: ["https://example.com/a", "https://example.com/b"],
+  });
+
+  const strict = parseCli(["extract", "https://example.com"], env);
+  assert.equal(strict.kind, "run");
+  if (strict.kind === "run") {
+    assert.equal(strict.options.failOnErrors, true);
+    assert.deepEqual(strict.options.request, {
+      highlights: true,
+      urls: ["https://example.com"],
+    });
+  }
+});
+
+void test("supports document IDs and exact-one source validation", () => {
+  const ids = parseCli(
+    ["extract", "--id", "document-id", "--ids", '["document-two"]', "--text"],
+    env,
+  );
+  assert.equal(ids.kind, "run");
+  if (ids.kind === "run") {
+    assert.deepEqual(ids.options.request, {
+      ids: ["document-id", "document-two"],
+      text: { maxCharacters: 10_000 },
+    });
+  }
+
   assert.throws(
     () =>
-      parseCli(["--category", "company", "--exclude-domain", "example.com", "sales tools"], env),
-    (error: unknown) =>
-      error instanceof CliError && error.message.includes("company category does not support"),
+      parseCli(
+        ["extract", "--body", '{"ids":["id"],"urls":["https://example.com"],"highlights":true}'],
+        env,
+      ),
+    (error: unknown) => error instanceof CliError && error.message.includes("exactly one"),
   );
 });
 
-void test("rejects requests outside the OpenAPI contract", () => {
-  const invalidArgumentLists = [
-    ["query", "--category", "research paper"],
-    ["query", "--compliance", "other"],
-    ["query", "--text-max-characters", "10001"],
-    ["query", "--highlight-max-characters", "10001"],
-    ["query", "--livecrawl-timeout", "90001"],
-    ["query", "--max-age-hours", "721"],
-    ["query", "--subpages", "101"],
-    ["query", "--links", "1001"],
-    ["query", "--start-published-date", "2025-01-01"],
+void test("rejects ambiguous options, unsupported combinations, and deprecated fields", () => {
+  assert.throws(
+    () => parseCli(["search", "--query", "--type", "auto"], env),
+    (error: unknown) => error instanceof CliError && error.message.includes("requires a value"),
+  );
+  assert.throws(
+    () => parseCli(["search", "one", "--query", "two"], env),
+    (error: unknown) => error instanceof CliError && error.message.includes("not both"),
+  );
+  assert.throws(
+    () => parseCli(["search", "query", "--output", "response.json", "--temp-output"], env),
+    (error: unknown) => error instanceof CliError && error.message.includes("not both"),
+  );
+  assert.throws(
+    () => parseCli(["search", "query", "--stream", "--temp-output"], env),
+    (error: unknown) => error instanceof CliError && error.message.includes("--stream"),
+  );
+  assert.throws(
+    () => parseCli(["search", "query", "--additional-query", "variation"], env),
+    (error: unknown) => error instanceof CliError && error.message.includes("deep search"),
+  );
+  assert.throws(
+    () =>
+      parseCli(["search", "query", "--category", "people", "--exclude-domain", "example.com"], env),
+    (error: unknown) => error instanceof CliError && error.message.includes("does not support"),
+  );
+  assert.throws(
+    () => parseCli(["search", "--body", '{"query":"query","startCrawlDate":null}'], env),
+    (error: unknown) => error instanceof CliError && error.message.includes("deprecated"),
+  );
+  assert.throws(
+    () =>
+      parseCli(
+        ["extract", "--body", '{"urls":["https://example.com"],"highlights":{"numSentences":3}}'],
+        env,
+      ),
+    (error: unknown) => error instanceof CliError && error.message.includes("deprecated"),
+  );
+});
+
+void test("rejects requests outside the current contract", () => {
+  const invalidArguments = [
+    ["search", "query", "--category", "research paper"],
+    ["search", "query", "--compliance", "other"],
+    ["search", "query", "--text-max-characters", "10001"],
+    ["search", "query", "--highlight-max-characters", "10001"],
+    ["search", "query", "--livecrawl-timeout", "90001"],
+    ["search", "query", "--max-age-hours", "721"],
+    ["search", "query", "--subpages", "101"],
+    ["search", "query", "--links", "1001"],
+    ["search", "query", "--start-published-date", "2026-01-01"],
   ];
 
-  for (const arguments_ of invalidArgumentLists) {
+  for (const arguments_ of invalidArguments) {
     assert.throws(() => parseCli(arguments_, env), CliError, JSON.stringify(arguments_));
   }
 
   const invalidBodies = [
-    { query: "query", additionalQueries: [] },
-    { query: "query", additionalQueries: Array.from({ length: 11 }, () => "variation") },
-    { query: "query", compliance: "other" },
-    { query: "query", outputSchema: false },
-    { query: "query", outputSchema: { type: "array" } },
-    { query: "query", startPublishedDate: 42 },
-    { query: "query", contents: { summary: true } },
-    { query: "query", contents: { extras: { codeBlocks: 1001 } } },
-    { query: "query", contents: { subpageTarget: "x".repeat(101) } },
+    { additionalQueries: [], query: "query", type: "deep" },
+    {
+      additionalQueries: Array.from({ length: 11 }, () => "variation"),
+      query: "query",
+      type: "deep",
+    },
+    { outputSchema: false, query: "query" },
+    { outputSchema: { type: "array" }, query: "query" },
+    { contents: { summary: true }, query: "query" },
+    { contents: { extras: { codeBlocks: 1001 } }, query: "query" },
+    { contents: { subpageTarget: "x".repeat(101) }, query: "query" },
   ];
 
   for (const body of invalidBodies) {
     assert.throws(
-      () => parseCli(["--body", JSON.stringify(body)], env),
+      () => parseCli(["search", "--body", JSON.stringify(body)], env),
       CliError,
       JSON.stringify(body),
     );
   }
 });
 
-void test("accepts nullable OpenAPI request fields and RFC 3339 publication dates", () => {
-  const command = parseCli(
+void test("supports short aliases and explicit disabling overrides", () => {
+  const search = parseCli(
     [
-      "--body",
-      JSON.stringify({
-        category: null,
-        contents: null,
-        endPublishedDate: null,
-        outputSchema: null,
-        query: "query",
-        startPublishedDate: "2025-01-01T00:00:00Z",
-        stream: null,
-      }),
+      "search",
+      "-q",
+      "query",
+      "-n",
+      "1",
+      "-t",
+      "fast",
+      "--exclude-domains",
+      '["example.com"]',
+      "--no-highlights",
+      "--no-text",
+      "--no-summary",
+      "--format",
+      "urls",
+      "--base-url",
+      "https://search.example.test/v1",
+      "--timeout-ms",
+      "1000",
+      "--dry-run",
     ],
+    {},
+  );
+  assert.equal(search.kind, "run");
+  if (search.kind === "run") {
+    assert.equal(search.options.baseUrl, "https://search.example.test/v1");
+    assert.equal(search.options.format, "urls");
+    assert.equal(search.options.timeoutMs, 1000);
+    assert.deepEqual(search.options.request["contents"], {
+      highlights: false,
+      summary: null,
+      text: false,
+    });
+  }
+
+  const extract = parseCli(
+    ["extract", "https://example.com", "--allow-partial", "--fail-on-errors"],
     env,
   );
-
-  assert.equal(command.kind, "run");
+  assert.equal(extract.kind, "run");
+  if (extract.kind === "run") {
+    assert.equal(extract.options.failOnErrors, true);
+  }
 });
 
-void test("help documents every supported public option", () => {
-  const help = helpText();
+void test("exposes machine-readable schemas with CLI defaults", () => {
+  const search = requestSchema("search");
+  assert.deepEqual(search["required"], ["query"]);
+  const searchProperties = search["properties"] as Record<string, unknown>;
+  assert.deepEqual(searchProperties["type"], {
+    anyOf: [
+      {
+        default: "auto",
+        enum: ["instant", "fast", "auto", "deep-lite", "deep", "deep-reasoning"],
+        type: "string",
+      },
+      { type: "null" },
+    ],
+  });
+  assert.equal(
+    ((searchProperties["numResults"] as Record<string, unknown>)["anyOf"] as unknown[])[0] &&
+      (
+        (searchProperties["numResults"] as Record<string, unknown>)["anyOf"] as Record<
+          string,
+          unknown
+        >[]
+      )[0]?.["default"],
+    5,
+  );
+
+  const extract = requestSchema("extract");
+  assert.deepEqual(extract["oneOf"], [{ required: ["urls"] }, { required: ["ids"] }]);
+});
+
+void test("documents agent-oriented defaults and the complete command surface", () => {
+  const global = helpText();
+  assert.match(global, /explicit|Commands:/);
+  assert.match(global, /5 results/);
+  assert.match(global, /private temporary file/);
+  assert.match(global, /Exit codes/);
+
+  const search = helpText("search");
   for (const option of [
-    "--api-key",
-    "--base-url",
     "--no-moderation",
-    "--compliance",
+    "--additional-queries",
+    "--output-schema",
+    "--highlight-query",
+    "--text",
+    "--summary",
     "--rich-image-links",
-    "--rich-links",
     "--code-blocks",
   ]) {
-    assert.match(help, new RegExp(option));
+    assert.match(search, new RegExp(option));
   }
+  assert.match(search, /Prefer highlights for agent workflows/);
+
+  const extract = helpText("extract");
+  assert.match(extract, /--allow-partial/);
+  assert.match(extract, /HTTP 200 with per-URL failures/);
 });
 
 void test("reports the package version", () => {
@@ -229,115 +630,32 @@ void test("reports the package version", () => {
   assert.equal(VERSION, packageJson.version);
 });
 
-void test("formats urls output", () => {
-  const output = formatResponse(
-    {
-      results: [
-        { title: "One", url: "https://example.com/one" },
-        { title: "Two", url: "https://example.com/two" },
+void test("formats URLs, content, grounding, statuses, and metadata", () => {
+  const response = {
+    costDollars: { total: 0.007 },
+    output: {
+      content: "Synthesized answer",
+      grounding: [
+        {
+          citations: [{ title: "Source", url: "https://example.com/source" }],
+          confidence: "high",
+          field: "content",
+        },
       ],
     },
-    "urls",
-    false,
-  );
-
-  assert.equal(output, "https://example.com/one\nhttps://example.com/two");
-});
-
-void test("builds a default highlights extraction request from positional URLs", () => {
-  const command = parseCli(["extract", "https://example.com/one", "https://example.com/two"], env);
-  assert.equal(command.kind, "run");
-
-  if (command.kind !== "run") {
-    return;
-  }
-
-  assert.equal(command.options.endpoint, "contents");
-  assert.equal(command.options.stream, false);
-  assert.deepEqual(command.options.request, {
-    highlights: true,
-    urls: ["https://example.com/one", "https://example.com/two"],
-  });
-});
-
-void test("builds top-level OpenAPI content options for document IDs", () => {
-  const command = parseCli(
-    [
-      "extract",
-      "--id",
-      "document-id",
-      "--text-max-characters",
-      "10000",
-      "--summary",
-      "--highlight-query",
-      "key findings",
-      "--links",
-      "1000",
-      "--max-age-hours",
-      "720",
+    requestId: "request_123",
+    results: [
+      {
+        highlights: ["First highlight\nsecond line"],
+        publishedDate: "2026-08-03",
+        summary: { answer: "Summary" },
+        text: "Page text",
+        title: "One",
+        url: "https://example.com/one",
+      },
     ],
-    env,
-  );
-  assert.equal(command.kind, "run");
-
-  if (command.kind !== "run") {
-    return;
-  }
-
-  assert.deepEqual(command.options.request, {
-    extras: { links: 1000 },
-    highlights: { query: "key findings" },
-    ids: ["document-id"],
-    maxAgeHours: 720,
-    summary: {},
-    text: { maxCharacters: 10000 },
-  });
-});
-
-void test("uses a raw extraction body without adding default highlights", () => {
-  const command = parseCli(["extract", "--body", '{"ids":["document-id"],"text":true}'], env);
-  assert.equal(command.kind, "run");
-
-  if (command.kind !== "run") {
-    return;
-  }
-
-  assert.deepEqual(command.options.request, { ids: ["document-id"], text: true });
-});
-
-void test("rejects extraction requests outside the OpenAPI contract", () => {
-  const tooManyUrls = Array.from({ length: 101 }, (_, index) => `https://example.com/${index}`);
-  const invalidArguments = [
-    ["extract"],
-    ["extract", "--stream", "https://example.com"],
-    ["extract", "--body", '{"ids":["id"],"urls":["https://example.com"]}'],
-    ["extract", "--body", '{"urls":[]}'],
-    ["extract", "--body", '{"urls":[""]}'],
-    ["extract", "--body", JSON.stringify({ urls: ["x".repeat(2049)] })],
-    ["extract", "--body", JSON.stringify({ urls: tooManyUrls })],
-    ["extract", "--body", '{"urls":["https://example.com"],"summary":true}'],
-  ];
-
-  for (const arguments_ of invalidArguments) {
-    assert.throws(() => parseCli(arguments_, env), CliError, JSON.stringify(arguments_));
-  }
-});
-
-void test("documents the extraction command", () => {
-  const command = parseCli(["extract", "--help"], {});
-  assert.deepEqual(command, { kind: "help", topic: "extract" });
-  const help = helpText("extract");
-  assert.match(help, /exa-search extract/);
-  assert.match(help, /--url/);
-  assert.match(help, /--id/);
-  assert.doesNotMatch(help, /--stream/);
-});
-
-void test("formats and detects per-URL extraction errors", () => {
-  const response = {
-    results: [],
     statuses: [
-      { id: "https://example.com", source: "cached", status: "success" },
+      { id: "https://example.com/one", source: "cached", status: "success" },
       {
         error: { httpStatusCode: 404, tag: "CRAWL_NOT_FOUND" },
         id: "https://example.com/missing",
@@ -346,29 +664,40 @@ void test("formats and detects per-URL extraction errors", () => {
     ],
   };
 
+  assert.equal(formatResponse(response, "urls", false), "https://example.com/one");
+  const text = formatResponse(response, "text", false);
+  assert.match(text, /Synthesized answer/);
+  assert.match(text, /Source — https:\/\/example\.com\/source/);
+  assert.match(text, /Highlights:/);
+  assert.match(text, /Summary: \{/);
+  assert.match(text, /Text: Page text/);
+  assert.match(text, /CRAWL_NOT_FOUND, HTTP 404/);
+  assert.match(text, /requestId: request_123/);
+  assert.match(text, /costDollars.total: 0.007/);
   assert.equal(hasContentErrors(response), true);
-  const output = formatResponse(response, "text", false);
-  assert.match(output, /success: https:\/\/example\.com \(cached\)/);
-  assert.match(output, /error: https:\/\/example\.com\/missing — CRAWL_NOT_FOUND, HTTP 404/);
+  assert.equal(contentResponseErrors(response).length, 1);
 });
 
-void test("formats requested text alongside summaries and highlights", () => {
-  const output = formatResponse(
-    {
-      results: [
-        {
-          highlights: [],
-          summary: "Summary",
-          text: "Page text",
-          title: "One",
-          url: "https://example.com/one",
-        },
-      ],
-    },
-    "text",
-    false,
+void test("references every public parser option in behavioral coverage", () => {
+  const parserSource = readFileSync("src/core.ts", "utf8");
+  const behavioralTests = [
+    "test/artifact.test.ts",
+    "test/cli.test.ts",
+    "test/core.test.ts",
+    "test/integration/contents.test.ts",
+    "test/integration/search.test.ts",
+  ]
+    .map((path) => readFileSync(path, "utf8"))
+    .join("\n");
+  const parserOptions = [...parserSource.matchAll(/case "(-{1,2}[A-Za-z][A-Za-z-]*)":/g)].map(
+    (match) => match[1],
+  );
+  const uncovered = [...new Set(parserOptions)].filter(
+    (option) =>
+      option !== undefined &&
+      !behavioralTests.includes(`"${option}"`) &&
+      !behavioralTests.includes(`\`${option}\``),
   );
 
-  assert.match(output, /Summary: Summary/);
-  assert.match(output, /Text: Page text/);
+  assert.deepEqual(uncovered, []);
 });

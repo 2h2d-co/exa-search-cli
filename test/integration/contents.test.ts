@@ -10,7 +10,7 @@ import {
   parseCli,
 } from "../../src/core.ts";
 
-const CONTENTS_DOC_URL = "https://exa.ai/docs/reference/get-contents";
+const CONTENTS_DOC_URL = "https://exa.ai/docs/reference/contents-api-guide-for-coding-agents";
 const skipWithoutApiKey = process.env["EXA_API_KEY"] ? false : "EXA_API_KEY is not set";
 
 void test(
@@ -81,8 +81,13 @@ void test(
       "90000",
     ]);
 
-    assert.equal(execution.exitCode, 2);
-    assert.equal(execution.stderr, "");
+    assert.equal(execution.exitCode, 6);
+    const error = JSON.parse(execution.stderr) as {
+      error: { kind: string };
+      type: string;
+    };
+    assert.equal(error.type, "error");
+    assert.equal(error.error.kind, "partial");
     const response = JSON.parse(execution.stdout) as unknown;
     assert.equal(hasContentErrors(response), true);
     const statuses = responseStatuses(response);

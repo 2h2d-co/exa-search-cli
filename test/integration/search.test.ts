@@ -16,6 +16,7 @@ void test(
   async () => {
     const response = await searchJson(
       parseLiveOptions([
+        "search",
         "Attention Is All You Need transformer architecture paper",
         "--type",
         "instant",
@@ -44,6 +45,7 @@ void test(
     let output = "";
     await streamSearch(
       parseLiveOptions([
+        "search",
         "Exa Search API documentation",
         "--type",
         "instant",
@@ -70,6 +72,7 @@ void test("streams synthesized text from the live API", { skip: skipWithoutApiKe
   let output = "";
   await streamSearch(
     parseLiveOptions([
+      "search",
       "What does the Exa Search API do?",
       "--type",
       "instant",
@@ -94,7 +97,7 @@ void test("streams synthesized text from the live API", { skip: skipWithoutApiKe
 });
 
 void test("surfaces validation errors from the live API", { skip: skipWithoutApiKey }, async () => {
-  const options = parseLiveOptions(["invalid request test", "--type", "instant"]);
+  const options = parseLiveOptions(["search", "invalid request test", "--type", "instant"]);
   options.request = { ...options.request, numResults: 0 };
 
   await assert.rejects(

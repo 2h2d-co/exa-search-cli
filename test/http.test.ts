@@ -31,7 +31,7 @@ void test("rejects stream chunks outside the OpenAPI schema", async () => {
   await withServer(
     (_request, response) => {
       response.writeHead(200, { "content-type": "text/event-stream" });
-      response.end('data: {"choices":[{"delta":{"content":"legacy"}}]}\n\n');
+      response.end('data: {"choices":[{"delta":{"other":"legacy"}}]}\n\n');
     },
     async (baseUrl) => {
       await assert.rejects(
@@ -77,10 +77,14 @@ function makeOptions(baseUrl: string, request: Record<string, unknown>): CliRunO
     apiKey: "test-key",
     baseUrl,
     compact: false,
+    dryRun: false,
     endpoint: "search",
+    failOnErrors: false,
     format: "json",
+    outputPath: undefined,
     request,
     stream: request["stream"] === true,
+    temporaryOutput: false,
     timeoutMs: 1000,
   };
 }
