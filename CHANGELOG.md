@@ -13,6 +13,7 @@ Current changes are tracked under `Unreleased`. The historical alpha releases pr
 - Standard-input support for request bodies, JSON arrays, and Search queries.
 - Atomic `--output` files, private generated `--temp-output` files, structured JSON errors, and stable exit codes.
 - Black-box tests that compile, pack, unpack, and invoke the published CLI artifact.
+- A packaged Agent Skill with bounded Search defaults, file-based result handling, citation guidance, and untrusted-content safeguards.
 - OpenAPI-backed extraction flags for rich image links, rich links, and code blocks.
 - `exa-search extract` command for the Exa Contents API, including URL and document-ID inputs, top-level content modes, freshness, subpages, extras, output formats, and per-URL status handling.
 - Live Exa API integration coverage for Search and Contents requests, synthesized streaming, response statuses, and API validation errors.

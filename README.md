@@ -119,6 +119,16 @@ Errors default to readable text in an interactive terminal and stable JSON other
 
 The Contents API may return HTTP 200 while individual URLs fail. The CLI preserves the complete response and exits with code 6 by default when `statuses` contains an error. Use `--allow-partial` only when those failures should still exit successfully.
 
+## Agent Skill
+
+The repository and npm package ship an Agent Skill—a declarative instruction file that teaches compatible coding agents when and how to invoke the CLI safely. Install it from GitHub with the Agent Skills CLI:
+
+```bash
+npx skills add 2h2d-co/exa-search-cli --skill exa-search-cli
+```
+
+The skill relies on the CLI's bounded Search defaults, saves authoritative JSON with `--temp-output`, checks Contents per-URL failures, requires citations, and treats retrieved web content as untrusted data. The source is at [`skills/exa-search-cli/SKILL.md`](skills/exa-search-cli/SKILL.md).
+
 ## Search
 
 Exa Search accepts a natural-language query and supports semantically rich descriptions. Start with the defaults:
