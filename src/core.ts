@@ -1,16 +1,17 @@
 import { readFileSync } from "node:fs";
 
-export const VERSION = "0.0.1-alpha.2";
+export const VERSION = readPackageVersion();
 
 const SEARCH_TYPES = ["auto", "fast", "instant", "deep-lite", "deep", "deep-reasoning"];
 const CATEGORIES = [
   "company",
-  "people",
-  "research paper",
+  "publication",
   "news",
   "personal site",
   "financial report",
+  "people",
 ];
+const COMPLIANCE_MODES = ["hipaa"];
 const TEXT_VERBOSITIES = ["compact", "standard", "full"];
 const TEXT_SECTIONS = ["header", "navigation", "banner", "body", "sidebar", "footer", "metadata"];
 const OUTPUT_FORMATS = ["json", "text", "urls"];
@@ -167,10 +168,10 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
         state.excludeDomains.push(...parseList(readValue()));
         break;
       case "--start-published-date":
-        state.generated["startPublishedDate"] = readValue();
+        state.generated["startPublishedDate"] = parseDateTime(readValue(), flag.name);
         break;
       case "--end-published-date":
-        state.generated["endPublishedDate"] = readValue();
+        state.generated["endPublishedDate"] = parseDateTime(readValue(), flag.name);
         break;
       case "--moderation":
         state.generated["moderation"] = true;
@@ -189,7 +190,7 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
         state.generated["outputSchema"] = parseJsonOrFile(readValue(), flag.name);
         break;
       case "--compliance":
-        state.generated["compliance"] = readValue();
+        state.generated["compliance"] = parseAllowed(readValue(), flag.name, COMPLIANCE_MODES);
         break;
       case "--stream":
         state.generated["stream"] = true;
@@ -213,7 +214,10 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
       case "--highlight-max-characters":
         state.contentModeExplicit = true;
         state.highlightPreference = "enabled";
-        state.highlightMaxCharacters = parseInteger(readValue(), flag.name, { min: 1 });
+        state.highlightMaxCharacters = parseInteger(readValue(), flag.name, {
+          min: 1,
+          max: 10_000,
+        });
         break;
       case "--text":
         state.contentModeExplicit = true;
@@ -222,7 +226,10 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
       case "--text-max-characters":
         state.contentModeExplicit = true;
         state.textEnabled = true;
-        state.textOptions["maxCharacters"] = parseInteger(readValue(), flag.name, { min: 1 });
+        state.textOptions["maxCharacters"] = parseInteger(readValue(), flag.name, {
+          min: 1,
+          max: 10_000,
+        });
         break;
       case "--include-html-tags":
         state.contentModeExplicit = true;
@@ -263,13 +270,20 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
       case "--livecrawl-timeout":
         state.generatedContents["livecrawlTimeout"] = parseInteger(readValue(), flag.name, {
           min: 1,
+          max: 90_000,
         });
         break;
       case "--max-age-hours":
-        state.generatedContents["maxAgeHours"] = parseInteger(readValue(), flag.name, { min: -1 });
+        state.generatedContents["maxAgeHours"] = parseInteger(readValue(), flag.name, {
+          min: -1,
+          max: 720,
+        });
         break;
       case "--subpages":
-        state.generatedContents["subpages"] = parseInteger(readValue(), flag.name, { min: 0 });
+        state.generatedContents["subpages"] = parseInteger(readValue(), flag.name, {
+          min: 0,
+          max: 100,
+        });
         break;
       case "--subpage-target":
       case "--subpage-targets":
@@ -279,7 +293,7 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
         state.generatedContents["extras"] = mergeObjects(
           getRecord(state.generatedContents["extras"]),
           {
-            links: parseInteger(readValue(), flag.name, { min: 0 }),
+            links: parseInteger(readValue(), flag.name, { min: 0, max: 1000 }),
           },
         );
         break;
@@ -287,7 +301,31 @@ export function parseCli(argv: readonly string[], env: Environment = process.env
         state.generatedContents["extras"] = mergeObjects(
           getRecord(state.generatedContents["extras"]),
           {
-            imageLinks: parseInteger(readValue(), flag.name, { min: 0 }),
+            imageLinks: parseInteger(readValue(), flag.name, { min: 0, max: 1000 }),
+          },
+        );
+        break;
+      case "--rich-image-links":
+        state.generatedContents["extras"] = mergeObjects(
+          getRecord(state.generatedContents["extras"]),
+          {
+            richImageLinks: parseInteger(readValue(), flag.name, { min: 0, max: 1000 }),
+          },
+        );
+        break;
+      case "--rich-links":
+        state.generatedContents["extras"] = mergeObjects(
+          getRecord(state.generatedContents["extras"]),
+          {
+            richLinks: parseInteger(readValue(), flag.name, { min: 0, max: 1000 }),
+          },
+        );
+        break;
+      case "--code-blocks":
+        state.generatedContents["extras"] = mergeObjects(
+          getRecord(state.generatedContents["extras"]),
+          {
+            codeBlocks: parseInteger(readValue(), flag.name, { min: 0, max: 1000 }),
           },
         );
         break;
@@ -323,24 +361,27 @@ Usage:
   exa-search --query "latest AI policy updates" --num-results 5
 
 Authentication:
-  Set EXA_API_KEY, or pass --api-key. EXA_BASE_URL can override the API host.
+      --api-key <key>                    Exa API key. Defaults to EXA_API_KEY.
+      --base-url <url>                   API base URL. Defaults to EXA_BASE_URL or https://api.exa.ai.
 
 Search options:
   -q, --query <query>                    Query text. Positional words are joined with spaces.
   -n, --num-results <1-100>              Number of results.
   -t, --type <type>                      auto, fast, instant, deep-lite, deep, deep-reasoning.
-      --category <category>              company, people, research paper, news, personal site, financial report.
+      --category <category>              company, publication, news, personal site, financial report, people.
       --user-location <ISO-2>            Two-letter country code.
       --include-domain <domain[,..]>     Restrict results to domains. Repeatable.
       --exclude-domain <domain[,..]>     Exclude domains. Repeatable.
-      --start-published-date <date>      ISO 8601 lower publication date bound.
-      --end-published-date <date>        ISO 8601 upper publication date bound.
+      --start-published-date <date>      RFC 3339 lower publication date-time bound.
+      --end-published-date <date>        RFC 3339 upper publication date-time bound.
       --moderation                       Filter unsafe content.
-      --additional-query <query>         Extra deep-search query variation. Repeatable.
+      --no-moderation                    Disable unsafe-content filtering.
+      --additional-query <query>         Extra deep-search query variation. Repeatable, maximum 10.
       --system-prompt <prompt>           Instructions for synthesis/search planning.
       --output-schema <json|@file>       JSON schema for output.content.
+      --compliance <mode>                Enterprise compliance mode: hipaa.
       --body <json|@file>                Base request JSON. CLI flags override matching fields.
-      --stream                           Request SSE streaming and print delta text.
+      --stream                           Stream synthesized output when outputSchema is present.
 
 Content options:
       --highlights                       Request highlights. Default unless --body or another content mode is used.
@@ -362,6 +403,9 @@ Content options:
       --subpage-target <keyword[,..]>    Prioritize subpages. Repeatable.
       --links <n>                        Extract URLs from each page.
       --image-links <n>                  Extract image URLs from each page.
+      --rich-image-links <n>             Extract rich image links from each page.
+      --rich-links <n>                   Extract rich links from each page.
+      --code-blocks <n>                  Extract code blocks from each page.
 
 Output options:
       --format <json|text|urls>          Output format. Default: json.
@@ -388,7 +432,25 @@ export async function streamSearch(
   options: CliRunOptions,
   write: (chunk: string) => void,
 ): Promise<void> {
-  const response = await postSearch(options, "text/event-stream");
+  const expectsEventStream = isRecord(options.request["outputSchema"]);
+  const response = await postSearch(
+    options,
+    expectsEventStream ? "text/event-stream" : "application/json",
+  );
+
+  if (!expectsEventStream) {
+    const responseBody = (await response.json()) as unknown;
+    write(formatResponse(responseBody, options.format, options.compact));
+    return;
+  }
+
+  const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (mediaType !== "text/event-stream") {
+    throw new CliError(
+      `Streaming response must use text/event-stream, received ${mediaType ?? "no content type"}`,
+    );
+  }
+
   if (response.body === null) {
     throw new CliError("Streaming response did not include a body");
   }
@@ -439,7 +501,7 @@ function buildCommand(state: ParseState, env: Environment): CliCommand {
     throw new CliError("Use either positional query text or --query, not both");
   }
 
-  if (state.query !== undefined && state.query.trim() !== "") {
+  if (state.query !== undefined && state.query.length > 0) {
     state.generated["query"] = state.query;
   } else if (state.positionalQuery.length > 0) {
     state.generated["query"] = state.positionalQuery.join(" ");
@@ -519,8 +581,7 @@ function buildContents(state: ParseState): Record<string, unknown> {
   }
 
   if (state.summaryEnabled) {
-    contents["summary"] =
-      Object.keys(state.summaryOptions).length > 0 ? state.summaryOptions : true;
+    contents["summary"] = state.summaryOptions;
   }
 
   if (state.subpageTargets.length > 0) {
@@ -534,48 +595,68 @@ function buildContents(state: ParseState): Record<string, unknown> {
 
 function validateRequest(request: Record<string, unknown>): void {
   const query = request["query"];
-  if (typeof query !== "string" || query.trim() === "") {
+  if (typeof query !== "string" || query.length === 0) {
     throw new CliError(
       "A non-empty query is required. Pass positional query text, --query, or --body with query.",
     );
   }
 
-  if (request["type"] !== undefined) {
+  if (isPresent(request["type"])) {
     assertAllowedValue(request["type"], "type", SEARCH_TYPES);
   }
 
-  if (request["stream"] !== undefined && typeof request["stream"] !== "boolean") {
-    throw new CliError("stream must be a boolean");
+  if (isPresent(request["stream"]) && typeof request["stream"] !== "boolean") {
+    throw new CliError("stream must be a boolean or null");
   }
 
-  if (request["numResults"] !== undefined) {
+  if (isPresent(request["numResults"])) {
     assertIntegerValue(request["numResults"], "numResults", { min: 1, max: 100 });
   }
 
-  if (request["category"] !== undefined) {
+  if (isPresent(request["category"])) {
     assertAllowedValue(request["category"], "category", CATEGORIES);
   }
 
-  if (request["userLocation"] !== undefined) {
+  if (isPresent(request["userLocation"])) {
     if (
       typeof request["userLocation"] !== "string" ||
       !/^[A-Za-z]{2}$/.test(request["userLocation"])
     ) {
-      throw new CliError("userLocation must be a two-letter ISO country code");
+      throw new CliError("userLocation must be a two-letter ISO country code or null");
     }
   }
 
-  if (request["moderation"] !== undefined && typeof request["moderation"] !== "boolean") {
-    throw new CliError("moderation must be a boolean");
+  if (isPresent(request["moderation"]) && typeof request["moderation"] !== "boolean") {
+    throw new CliError("moderation must be a boolean or null");
   }
 
-  validateStringArray(request["includeDomains"], "includeDomains", 1200);
-  validateStringArray(request["excludeDomains"], "excludeDomains", 1200);
-  validateStringArray(request["additionalQueries"], "additionalQueries");
+  if (isPresent(request["startPublishedDate"])) {
+    assertDateTimeValue(request["startPublishedDate"], "startPublishedDate");
+  }
+
+  if (isPresent(request["endPublishedDate"])) {
+    assertDateTimeValue(request["endPublishedDate"], "endPublishedDate");
+  }
+
+  if (isPresent(request["compliance"])) {
+    assertAllowedValue(request["compliance"], "compliance", COMPLIANCE_MODES);
+  }
+
+  if (isPresent(request["systemPrompt"]) && typeof request["systemPrompt"] !== "string") {
+    throw new CliError("systemPrompt must be a string or null");
+  }
+
+  validateOutputSchema(request["outputSchema"]);
+  validateStringArray(request["includeDomains"], "includeDomains", { maxItems: 1200 });
+  validateStringArray(request["excludeDomains"], "excludeDomains", { maxItems: 1200 });
+  validateStringArray(request["additionalQueries"], "additionalQueries", {
+    minItems: 1,
+    maxItems: 10,
+  });
 
   if (request["category"] === "company" || request["category"] === "people") {
-    const forbidden = ["excludeDomains", "startPublishedDate", "endPublishedDate"].filter(
-      (field) => request[field] !== undefined,
+    const forbidden = ["excludeDomains", "startPublishedDate", "endPublishedDate"].filter((field) =>
+      isPresent(request[field]),
     );
     if (forbidden.length > 0) {
       throw new CliError(
@@ -590,51 +671,189 @@ function validateRequest(request: Record<string, unknown>): void {
 }
 
 function validateContents(value: unknown): void {
+  if (value === null) {
+    return;
+  }
+
   if (!isRecord(value)) {
-    throw new CliError("contents must be an object");
+    throw new CliError("contents must be an object or null");
   }
 
   validateBooleanOrObject(value["highlights"], "contents.highlights");
   validateBooleanOrObject(value["text"], "contents.text");
-  validateBooleanOrObject(value["summary"], "contents.summary");
+  validateObjectOrNull(value["summary"], "contents.summary");
+  validateTextOptions(value["text"]);
+  validateHighlightOptions(value["highlights"]);
+  validateSummaryOptions(value["summary"]);
 
-  if (value["livecrawlTimeout"] !== undefined) {
-    assertIntegerValue(value["livecrawlTimeout"], "contents.livecrawlTimeout", { min: 1 });
+  if (isPresent(value["livecrawlTimeout"])) {
+    assertIntegerValue(value["livecrawlTimeout"], "contents.livecrawlTimeout", {
+      min: 1,
+      max: 90_000,
+    });
   }
 
-  if (value["maxAgeHours"] !== undefined) {
-    assertIntegerValue(value["maxAgeHours"], "contents.maxAgeHours", { min: -1 });
+  if (isPresent(value["maxAgeHours"])) {
+    assertIntegerValue(value["maxAgeHours"], "contents.maxAgeHours", { min: -1, max: 720 });
   }
 
-  if (value["subpages"] !== undefined) {
-    assertIntegerValue(value["subpages"], "contents.subpages", { min: 0 });
+  if (isPresent(value["subpages"])) {
+    assertIntegerValue(value["subpages"], "contents.subpages", { min: 0, max: 100 });
   }
 
-  if (value["subpageTarget"] !== undefined && typeof value["subpageTarget"] !== "string") {
-    validateStringArray(value["subpageTarget"], "contents.subpageTarget");
+  validateSubpageTarget(value["subpageTarget"]);
+  validateExtras(value["extras"]);
+}
+
+function validateTextOptions(value: unknown): void {
+  if (!isRecord(value)) {
+    return;
   }
 
-  if (value["extras"] !== undefined) {
-    if (!isRecord(value["extras"])) {
-      throw new CliError("contents.extras must be an object");
+  if (isPresent(value["maxCharacters"])) {
+    assertIntegerValue(value["maxCharacters"], "contents.text.maxCharacters", {
+      min: 1,
+      max: 10_000,
+    });
+  }
+
+  if (isPresent(value["includeHtmlTags"]) && typeof value["includeHtmlTags"] !== "boolean") {
+    throw new CliError("contents.text.includeHtmlTags must be a boolean or null");
+  }
+
+  if (isPresent(value["verbosity"])) {
+    assertAllowedValue(value["verbosity"], "contents.text.verbosity", TEXT_VERBOSITIES);
+  }
+
+  validateStringArray(value["includeSections"], "contents.text.includeSections", {
+    allowed: TEXT_SECTIONS,
+  });
+  validateStringArray(value["excludeSections"], "contents.text.excludeSections", {
+    allowed: TEXT_SECTIONS,
+  });
+}
+
+function validateHighlightOptions(value: unknown): void {
+  if (!isRecord(value)) {
+    return;
+  }
+
+  if (isPresent(value["query"]) && typeof value["query"] !== "string") {
+    throw new CliError("contents.highlights.query must be a string or null");
+  }
+
+  if (isPresent(value["maxCharacters"])) {
+    assertIntegerValue(value["maxCharacters"], "contents.highlights.maxCharacters", {
+      min: 1,
+      max: 10_000,
+    });
+  }
+
+  for (const field of ["numSentences", "highlightsPerUrl"]) {
+    if (isPresent(value[field])) {
+      assertIntegerValue(value[field], `contents.highlights.${field}`, { min: 1 });
     }
+  }
+}
 
-    if (value["extras"]["links"] !== undefined) {
-      assertIntegerValue(value["extras"]["links"], "contents.extras.links", { min: 0 });
+function validateSummaryOptions(value: unknown): void {
+  if (!isRecord(value)) {
+    return;
+  }
+
+  if (isPresent(value["query"]) && typeof value["query"] !== "string") {
+    throw new CliError("contents.summary.query must be a string or null");
+  }
+
+  if (isPresent(value["schema"]) && !isRecord(value["schema"])) {
+    throw new CliError("contents.summary.schema must be an object or null");
+  }
+}
+
+function validateSubpageTarget(value: unknown): void {
+  if (!isPresent(value)) {
+    return;
+  }
+
+  if (typeof value === "string") {
+    if (value.length < 1 || value.length > 100) {
+      throw new CliError("contents.subpageTarget must contain between 1 and 100 characters");
     }
+    return;
+  }
 
-    if (value["extras"]["imageLinks"] !== undefined) {
-      assertIntegerValue(value["extras"]["imageLinks"], "contents.extras.imageLinks", { min: 0 });
+  validateStringArray(value, "contents.subpageTarget", {
+    maxItems: 100,
+    minItemLength: 1,
+    maxItemLength: 100,
+  });
+}
+
+function validateExtras(value: unknown): void {
+  if (!isPresent(value)) {
+    return;
+  }
+
+  if (!isRecord(value)) {
+    throw new CliError("contents.extras must be an object or null");
+  }
+
+  for (const field of ["links", "imageLinks", "richImageLinks", "richLinks", "codeBlocks"]) {
+    if (isPresent(value[field])) {
+      assertIntegerValue(value[field], `contents.extras.${field}`, { min: 0, max: 1000 });
+    }
+  }
+}
+
+function validateOutputSchema(value: unknown): void {
+  if (!isPresent(value)) {
+    return;
+  }
+
+  if (!isRecord(value)) {
+    throw new CliError("outputSchema must be an object or null");
+  }
+
+  const type = value["type"];
+  if (type !== "text" && type !== "object") {
+    throw new CliError('outputSchema.type must be "text" or "object"');
+  }
+
+  if (value["description"] !== undefined && typeof value["description"] !== "string") {
+    throw new CliError("outputSchema.description must be a string");
+  }
+
+  if (type === "object") {
+    if (value["properties"] !== undefined && !isRecord(value["properties"])) {
+      throw new CliError("outputSchema.properties must be an object");
+    }
+    if (value["required"] === null) {
+      throw new CliError("outputSchema.required must be an array of strings");
+    }
+    validateStringArray(value["required"], "outputSchema.required");
+    if (
+      value["additionalProperties"] !== undefined &&
+      typeof value["additionalProperties"] !== "boolean"
+    ) {
+      throw new CliError("outputSchema.additionalProperties must be a boolean");
     }
   }
 }
 
 function validateBooleanOrObject(value: unknown, field: string): void {
-  if (value === undefined || typeof value === "boolean" || isRecord(value)) {
+  if (!isPresent(value) || typeof value === "boolean" || isRecord(value)) {
     return;
   }
 
-  throw new CliError(`${field} must be a boolean or object`);
+  throw new CliError(`${field} must be a boolean, object, or null`);
+}
+
+function validateObjectOrNull(value: unknown, field: string): void {
+  if (!isPresent(value) || isRecord(value)) {
+    return;
+  }
+
+  throw new CliError(`${field} must be an object or null`);
 }
 
 async function postSearch(options: CliRunOptions, accept: string): Promise<Response> {
@@ -689,24 +908,36 @@ function writeSseContent(event: string, write: (chunk: string) => void): void {
     return;
   }
 
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(data) as unknown;
-    if (!isRecord(parsed) || !Array.isArray(parsed["choices"])) {
-      return;
-    }
-
-    const choice = parsed["choices"][0];
-    if (
-      !isRecord(choice) ||
-      !isRecord(choice["delta"]) ||
-      typeof choice["delta"]["content"] !== "string"
-    ) {
-      return;
-    }
-
-    write(choice["delta"]["content"]);
+    parsed = JSON.parse(data) as unknown;
   } catch {
-    write(data);
+    throw new CliError("Search stream contained invalid JSON data");
+  }
+
+  if (!isRecord(parsed) || typeof parsed["type"] !== "string") {
+    throw new CliError("Search stream event must include a type");
+  }
+
+  switch (parsed["type"]) {
+    case "text-delta":
+      if (typeof parsed["delta"] !== "string") {
+        throw new CliError("Search text-delta event must include a string delta");
+      }
+      write(parsed["delta"]);
+      return;
+    case "error":
+      if (!isRecord(parsed["error"]) || typeof parsed["error"]["message"] !== "string") {
+        throw new CliError("Search error event must include an error message");
+      }
+      throw new CliError(`Search stream error: ${parsed["error"]["message"]}`);
+    case "grounding":
+    case "results":
+    case "stream-reset":
+    case "done":
+      return;
+    default:
+      throw new CliError(`Unknown search stream event type: ${parsed["type"]}`);
   }
 }
 
@@ -753,7 +984,7 @@ function formatTextResponse(response: unknown): string {
     }
 
     const text = stringField(result, "text");
-    if (text !== undefined && summary === undefined && !Array.isArray(result["highlights"])) {
+    if (text !== undefined) {
       lines.push(indentBlock(text, "   Text: ", "         "));
     }
 
@@ -851,6 +1082,11 @@ function readJsonFile(path: string, flag: string): string {
   }
 }
 
+function parseDateTime(value: string, flag: string): string {
+  assertDateTimeValue(value, flag);
+  return value;
+}
+
 function parseInteger(value: string, flag: string, bounds: { min?: number; max?: number }): number {
   if (!/^-?\d+$/.test(value)) {
     throw new CliError(`${flag} must be an integer`);
@@ -876,6 +1112,57 @@ function assertIntegerValue(
 
   if (bounds.max !== undefined && value > bounds.max) {
     throw new CliError(`${field} must be <= ${bounds.max}`);
+  }
+}
+
+function assertDateTimeValue(value: unknown, field: string): void {
+  if (typeof value !== "string") {
+    throw new CliError(`${field} must be an RFC 3339 date-time string`);
+  }
+
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-](\d{2}):(\d{2}))$/.exec(
+      value,
+    );
+  if (match === null) {
+    throw new CliError(`${field} must be an RFC 3339 date-time string`);
+  }
+
+  const [
+    ,
+    yearValue,
+    monthValue,
+    dayValue,
+    hourValue,
+    minuteValue,
+    secondValue,
+    offsetHourValue,
+    offsetMinuteValue,
+  ] = match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+  const second = Number(secondValue);
+  const offsetHour = offsetHourValue === undefined ? 0 : Number(offsetHourValue);
+  const offsetMinute = offsetMinuteValue === undefined ? 0 : Number(offsetMinuteValue);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    daysInMonth === undefined ||
+    day > daysInMonth ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  ) {
+    throw new CliError(`${field} must be an RFC 3339 date-time string`);
   }
 }
 
@@ -916,20 +1203,47 @@ function uniqueStrings(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
 
-function validateStringArray(value: unknown, field: string, maxLength?: number): void {
-  if (value === undefined) {
+function validateStringArray(
+  value: unknown,
+  field: string,
+  bounds: {
+    minItems?: number;
+    maxItems?: number;
+    minItemLength?: number;
+    maxItemLength?: number;
+    allowed?: readonly string[];
+  } = {},
+): void {
+  if (!isPresent(value)) {
     return;
   }
 
-  if (
-    !Array.isArray(value) ||
-    value.some((entry) => typeof entry !== "string" || entry.trim() === "")
-  ) {
-    throw new CliError(`${field} must be an array of non-empty strings`);
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+    throw new CliError(`${field} must be an array of strings or null`);
   }
 
-  if (maxLength !== undefined && value.length > maxLength) {
-    throw new CliError(`${field} must contain at most ${maxLength} entries`);
+  if (bounds.minItems !== undefined && value.length < bounds.minItems) {
+    throw new CliError(`${field} must contain at least ${bounds.minItems} entries`);
+  }
+
+  if (bounds.maxItems !== undefined && value.length > bounds.maxItems) {
+    throw new CliError(`${field} must contain at most ${bounds.maxItems} entries`);
+  }
+
+  for (const entry of value as string[]) {
+    if (bounds.minItemLength !== undefined && entry.length < bounds.minItemLength) {
+      throw new CliError(
+        `${field} entries must contain at least ${bounds.minItemLength} characters`,
+      );
+    }
+    if (bounds.maxItemLength !== undefined && entry.length > bounds.maxItemLength) {
+      throw new CliError(
+        `${field} entries must contain at most ${bounds.maxItemLength} characters`,
+      );
+    }
+    if (bounds.allowed !== undefined && !bounds.allowed.includes(entry)) {
+      throw new CliError(`${field} entries must be one of: ${bounds.allowed.join(", ")}`);
+    }
   }
 }
 
@@ -955,8 +1269,23 @@ function getRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
+function isPresent(value: unknown): boolean {
+  return value !== undefined && value !== null;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readPackageVersion(): string {
+  const packageJson: unknown = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  );
+  if (!isRecord(packageJson) || typeof packageJson["version"] !== "string") {
+    throw new Error("package.json must include a string version");
+  }
+
+  return packageJson["version"];
 }
 
 function stringField(record: Record<string, unknown>, field: string): string | undefined {
