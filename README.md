@@ -19,20 +19,20 @@ This project is not affiliated with, endorsed by, or maintained by Exa.
 ## Install
 
 ```bash
-npm install -g exa-search-cli@alpha
+npm install -g exa-search-cli
 ```
 
 With mise, use the npm backend:
 
 ```bash
-mise use npm:exa-search-cli@alpha
+mise use npm:exa-search-cli
 exa-search --version
 ```
 
 For a one-off run:
 
 ```bash
-mise x npm:exa-search-cli@alpha -- exa-search --help
+mise x npm:exa-search-cli -- exa-search --help
 ```
 
 ## Authentication

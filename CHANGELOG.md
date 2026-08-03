@@ -6,6 +6,8 @@ Current changes are tracked under `Unreleased`. The historical alpha releases pr
 
 ## Unreleased
 
+## [0.1.0] - 2026-08-03
+
 ### Added
 
 - Dry-run request previews that validate and print the effective request without authentication or an API call.
