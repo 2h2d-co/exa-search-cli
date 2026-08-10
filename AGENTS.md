@@ -9,6 +9,6 @@ exa-search-cli is an unofficial, zero-runtime-dependency CLI for the Exa Search 
 - Add changelog entries for changes whose commit would be `feat:` or `fix:`; keep entries under `Unreleased` until a release is made.
 - Release commits should do the following:
   - update the package version;
-  - move `Unreleased` changelog entries into the new release section;
-  - commit with `release: vX.Y.Z` as the commit message;
-  - create a lightweight tag named `vX.Y.Z` with `git tag vX.Y.Z`; do not use `git tag -a`, `git tag -s`, `git tag -m`, or `cog bump --annotated`.
+  - keep changelog entries under `Unreleased` for prereleases and move them into a release section only for stable releases;
+  - use `npm run release -- X.Y.Z` to build the package locally, create an SSH-signed `release: vX.Y.Z` commit containing its `Npm-Artifact-SHA256` trailer, verify a clean rebuild, and create the matching lightweight tag;
+  - push the release commit and tag atomically; do not use `git tag -a`, `git tag -s`, `git tag -m`, or `cog bump --annotated`.

@@ -6,6 +6,10 @@ Current changes are tracked under `Unreleased`. The historical alpha releases pr
 
 ## Unreleased
 
+### Security
+
+- Require npm releases to match a locally built SHA-256 recorded in an SSH-signed release commit before trusted publishing can stage the package.
+
 ## [0.1.0] - 2026-08-03
 
 ### Added
