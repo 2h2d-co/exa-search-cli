@@ -293,14 +293,14 @@ Run the separate live integration suite with a real Exa API key:
 EXA_API_KEY="..." npm run test:integration
 ```
 
-The integration suite calls the live Exa API and incurs normal API charges. GitHub Actions reads the same key from the `EXA_API_KEY` repository secret.
+The integration suite calls the live Exa API and incurs normal API charges. GitHub Actions runs it only through the manually dispatched `Live API integration` workflow on `main`, using `EXA_API_KEY` from the tag- and branch-restricted `api-integration` environment.
 
 Release flow:
 
 1. Run `npm run release -- X.Y.Z` from a clean, synchronized `main`.
 2. The command builds the exact package from the staged Git index, records its SHA-256 in an SSH-signed release commit, proves a clean rebuild is reproducible, and creates a lightweight `vX.Y.Z` tag.
 3. Inspect the result, then push atomically with `git push --atomic origin main vX.Y.Z`.
-4. GitHub Actions builds and tests without publishing credentials. A separate GitHub-owned job verifies the commit signature and signed package digest before attesting and staging that exact archive through npm trusted publishing.
+4. GitHub Actions builds and tests without publishing credentials. After approval in the tag-restricted `npm-publish` environment, a separate GitHub-owned job verifies the commit signature and signed package digest before attesting and staging that exact archive through npm trusted publishing.
 5. Approve the staged package on npmjs.com, or with `npm stage approve <stage-id>`.
 
 Stable versions use the `latest` npm dist-tag; prereleases derive the tag from their first prerelease identifier. Do not create annotated or signed tag objects.

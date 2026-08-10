@@ -9,6 +9,8 @@ Current changes are tracked under `Unreleased`. The historical alpha releases pr
 ### Security
 
 - Require npm releases to match a locally built SHA-256 recorded in an SSH-signed release commit before trusted publishing can stage the package.
+- Require code-owner review for release policy, protect `main` and `v*` refs, and gate npm OIDC behind a reviewed tag-only environment.
+- Remove API credentials from pull-request and package-build jobs; live integration now runs manually from `main` through a protected environment.
 
 ## [0.1.0] - 2026-08-03
 

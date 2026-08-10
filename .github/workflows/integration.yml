@@ -1,22 +1,21 @@
-name: CI
+name: Live API integration
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions: {}
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: live-api-integration
+  cancel-in-progress: false
 
 jobs:
-  validate:
-    name: Validate
+  integration:
+    name: Test packed CLI against Exa API
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: api-integration
     permissions:
       contents: read
 
@@ -25,6 +24,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.sha }}
 
       - name: Set up Node.js and npm
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
@@ -39,8 +39,7 @@ jobs:
       - name: Check
         run: npm run check
 
-      - name: Test
-        run: npm test
-
-      - name: Build and preview package
-        run: npm run pack:dry
+      - name: Test all CLI behavior and the packed artifact against the real API
+        run: npm run test:integration
+        env:
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
