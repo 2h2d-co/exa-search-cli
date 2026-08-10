@@ -1,6 +1,6 @@
 {
   "name": "exa-search-cli",
-  "version": "0.1.0",
+  "version": "0.1.1-alpha.0",
   "description": "An unofficial zero-runtime-dependency CLI for the Exa Search and Contents APIs",
   "homepage": "https://github.com/2h2d-co/exa-search-cli#readme",
   "bugs": {
