@@ -15,7 +15,7 @@ import {
 
 const skipWithoutApiKey = process.env["EXA_API_KEY"] ? false : "EXA_API_KEY is not set";
 
-void test(
+test(
   "searches the live publication index with a generated summary",
   { skip: skipWithoutApiKey },
   async () => {
@@ -43,7 +43,7 @@ void test(
   },
 );
 
-void test(
+test(
   "receives the live JSON response when stream has no outputSchema",
   { skip: skipWithoutApiKey },
   async () => {
@@ -74,7 +74,7 @@ void test(
   },
 );
 
-void test("streams synthesized text from the live API", { skip: skipWithoutApiKey }, async () => {
+test("streams synthesized text from the live API", { skip: skipWithoutApiKey }, async () => {
   let chunks = 0;
   let output = "";
   await streamSearch(
@@ -103,7 +103,7 @@ void test("streams synthesized text from the live API", { skip: skipWithoutApiKe
   assert.ok(output.trim().length > 0);
 });
 
-void test("surfaces validation errors from the live API", { skip: skipWithoutApiKey }, async () => {
+test("surfaces validation errors from the live API", { skip: skipWithoutApiKey }, async () => {
   const options = parseLiveOptions(["search", "invalid request test", "--type", "instant"]);
   options.request = { ...options.request, numResults: 0 };
 

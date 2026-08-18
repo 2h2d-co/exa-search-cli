@@ -55,9 +55,7 @@ export function writeOutputFile(path: string, content: string): OutputReceipt {
     try {
       unlinkSync(temporary);
       // oxlint-disable-next-line 2h2d/no-silent-error-suppression -- Best-effort cleanup must not replace the primary write result.
-    } catch (error) {
-      void error;
-    }
+    } catch {}
   }
 
   return {

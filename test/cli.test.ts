@@ -10,7 +10,7 @@ import { isJsonObject } from "../src/core.ts";
 
 const cliPath = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 
-void test("writes output atomically and refuses to replace existing files", () => {
+test("writes output atomically and refuses to replace existing files", () => {
   const directory = mkdtempSync(join(tmpdir(), "exa-search-cli-test-"));
   const output = join(directory, "preview.json");
 
@@ -44,7 +44,7 @@ void test("writes output atomically and refuses to replace existing files", () =
   }
 });
 
-void test("writes to a generated private temporary file and returns only its path", () => {
+test("writes to a generated private temporary file and returns only its path", () => {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "exa-search-temp-output-test-"));
 
   try {
@@ -76,7 +76,7 @@ void test("writes to a generated private temporary file and returns only its pat
   }
 });
 
-void test("uses compact JSON and structured errors outside an interactive terminal", () => {
+test("uses compact JSON and structured errors outside an interactive terminal", () => {
   const preview = runCliSync(["search", "Exa Search API", "--dry-run"]);
   assert.equal(preview.status, 0, preview.stderr);
   assert.equal(preview.stdout, `${JSON.stringify(JSON.parse(preview.stdout))}\n`);

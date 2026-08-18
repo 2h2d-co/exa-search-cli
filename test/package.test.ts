@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { isJsonObject } from "../src/core.ts";
 
-void test("packages an agent skill with bounded and safe CLI guidance", () => {
+test("packages an agent skill with bounded and safe CLI guidance", () => {
   const packageJson: unknown = JSON.parse(readFileSync("package.json", "utf8"));
   assert.ok(isJsonObject(packageJson));
   assert.ok(Array.isArray(packageJson["files"]));

@@ -18,7 +18,7 @@ import { requestSchema } from "../src/schema.ts";
 
 const env = { EXA_API_KEY: "test-key" };
 
-void test("requires explicit commands and applies bounded Search defaults", () => {
+test("requires explicit commands and applies bounded Search defaults", () => {
   assert.throws(
     () => parseCli(["recent", "LLM", "news"], env),
     (error: unknown) => error instanceof CliError && error.message.includes("Unknown command"),
@@ -44,7 +44,7 @@ void test("requires explicit commands and applies bounded Search defaults", () =
   assert.equal(command.options.failOnErrors, false);
 });
 
-void test("supports help, version, schemas, and rejects unknown topics", () => {
+test("supports help, version, schemas, and rejects unknown topics", () => {
   assert.deepEqual(parseCli(["-h"], {}), { kind: "help" });
   assert.deepEqual(parseCli(["search", "--help"], {}), {
     endpoint: "search",
@@ -65,7 +65,7 @@ void test("supports help, version, schemas, and rejects unknown topics", () => {
   );
 });
 
-void test("uses explicit content modes instead of default highlights", () => {
+test("uses explicit content modes instead of default highlights", () => {
   const text = parseCli(
     ["search", "--query", "architecture", "--text", "--text-max-characters", "5000"],
     env,
@@ -96,7 +96,7 @@ void test("uses explicit content modes instead of default highlights", () => {
   }
 });
 
-void test("adds highlights to body requests without a content mode and preserves explicit modes", () => {
+test("adds highlights to body requests without a content mode and preserves explicit modes", () => {
   const defaulted = parseCli(
     [
       "search",
@@ -145,7 +145,7 @@ void test("adds highlights to body requests without a content mode and preserves
   }
 });
 
-void test("preserves exact singular values and accepts plural JSON arrays", () => {
+test("preserves exact singular values and accepts plural JSON arrays", () => {
   const search = parseCli(
     [
       "search",
@@ -192,7 +192,7 @@ void test("preserves exact singular values and accepts plural JSON arrays", () =
   }
 });
 
-void test("accepts request bodies and Search queries from standard input once", () => {
+test("accepts request bodies and Search queries from standard input once", () => {
   const search = parseCli(
     ["search", "--query", "-", "--dry-run"],
     {},
@@ -225,7 +225,7 @@ void test("accepts request bodies and Search queries from standard input once", 
   );
 });
 
-void test("builds redacted dry-run previews without authentication", () => {
+test("builds redacted dry-run previews without authentication", () => {
   const command = parseCli(["search", "Exa Search API", "--api-key", "secret", "--dry-run"], {});
   assert.equal(command.kind, "run");
   if (command.kind !== "run") {
@@ -248,7 +248,7 @@ void test("builds redacted dry-run previews without authentication", () => {
   assert.doesNotMatch(JSON.stringify(preview), /secret/);
 });
 
-void test("builds current Search filters, synthesis, and advanced content options", () => {
+test("builds current Search filters, synthesis, and advanced content options", () => {
   const command = parseCli(
     [
       "search",
@@ -373,7 +373,7 @@ void test("builds current Search filters, synthesis, and advanced content option
   });
 });
 
-void test("builds bounded Extract requests and defaults to strict partial failures", () => {
+test("builds bounded Extract requests and defaults to strict partial failures", () => {
   const command = parseCli(
     [
       "extract",
@@ -418,7 +418,7 @@ void test("builds bounded Extract requests and defaults to strict partial failur
   }
 });
 
-void test("supports document IDs and exact-one source validation", () => {
+test("supports document IDs and exact-one source validation", () => {
   const ids = parseCli(
     ["extract", "--id", "document-id", "--ids", '["document-two"]', "--text"],
     env,
@@ -441,7 +441,7 @@ void test("supports document IDs and exact-one source validation", () => {
   );
 });
 
-void test("rejects ambiguous options, unsupported combinations, and deprecated fields", () => {
+test("rejects ambiguous options, unsupported combinations, and deprecated fields", () => {
   assert.throws(
     () => parseCli(["search", "--query", "--type", "auto"], env),
     (error: unknown) => error instanceof CliError && error.message.includes("requires a value"),
@@ -481,7 +481,7 @@ void test("rejects ambiguous options, unsupported combinations, and deprecated f
   );
 });
 
-void test("rejects requests outside the current contract", () => {
+test("rejects requests outside the current contract", () => {
   const invalidArguments = [
     ["search", "query", "--category", "research paper"],
     ["search", "query", "--compliance", "other"],
@@ -521,7 +521,7 @@ void test("rejects requests outside the current contract", () => {
   }
 });
 
-void test("supports short aliases and explicit disabling overrides", () => {
+test("supports short aliases and explicit disabling overrides", () => {
   const search = parseCli(
     [
       "search",
@@ -568,7 +568,7 @@ void test("supports short aliases and explicit disabling overrides", () => {
   }
 });
 
-void test("exposes machine-readable schemas with CLI defaults", () => {
+test("exposes machine-readable schemas with CLI defaults", () => {
   const search: JsonObject = requestSchema("search");
   assert.deepEqual(search["required"], ["query"]);
   const searchProperties = search["properties"];
@@ -595,7 +595,7 @@ void test("exposes machine-readable schemas with CLI defaults", () => {
   assert.deepEqual(extract["oneOf"], [{ required: ["urls"] }, { required: ["ids"] }]);
 });
 
-void test("documents agent-oriented defaults and the complete command surface", () => {
+test("documents agent-oriented defaults and the complete command surface", () => {
   const global = helpText();
   assert.match(global, /explicit|Commands:/);
   assert.match(global, /5 results/);
@@ -622,7 +622,7 @@ void test("documents agent-oriented defaults and the complete command surface", 
   assert.match(extract, /HTTP 200 with per-URL failures/);
 });
 
-void test("reports the package version", () => {
+test("reports the package version", () => {
   const packageJson: unknown = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   );
@@ -631,7 +631,7 @@ void test("reports the package version", () => {
   assert.equal(VERSION, packageJson["version"]);
 });
 
-void test("formats URLs, content, grounding, statuses, and metadata", () => {
+test("formats URLs, content, grounding, statuses, and metadata", () => {
   const response = {
     costDollars: { total: 0.007 },
     output: {
@@ -679,7 +679,7 @@ void test("formats URLs, content, grounding, statuses, and metadata", () => {
   assert.equal(contentResponseErrors(response).length, 1);
 });
 
-void test("references every public parser option in behavioral coverage", () => {
+test("references every public parser option in behavioral coverage", () => {
   const parserSource = readFileSync("src/core.ts", "utf8");
   const behavioralTests = [
     "test/artifact.test.ts",

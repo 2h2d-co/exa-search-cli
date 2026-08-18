@@ -1503,11 +1503,17 @@ async function postEndpoint(
     });
   } catch (error) {
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
-      throw new CliError(`Request timed out after ${options.timeoutMs} ms`, { kind: "timeout" });
+      throw new CliError(`Request timed out after ${options.timeoutMs} ms`, {
+        cause: error,
+        kind: "timeout",
+      });
     }
 
     const reason = error instanceof Error ? error.message : String(error);
-    throw new CliError(`Network request failed: ${reason}`, { kind: "network" });
+    throw new CliError(`Network request failed: ${reason}`, {
+      cause: error,
+      kind: "network",
+    });
   }
 
   if (!response.ok) {

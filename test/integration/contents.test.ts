@@ -18,7 +18,7 @@ import {
 const CONTENTS_DOC_URL = "https://exa.ai/docs/reference/contents-api-guide-for-coding-agents";
 const skipWithoutApiKey = process.env["EXA_API_KEY"] ? false : "EXA_API_KEY is not set";
 
-void test(
+test(
   "extracts combined content modes from the live Contents API",
   { skip: skipWithoutApiKey },
   async () => {
@@ -52,7 +52,7 @@ void test(
   },
 );
 
-void test(
+test(
   "extracts a live document through the ids request field",
   { skip: skipWithoutApiKey },
   async () => {
@@ -74,7 +74,7 @@ void test(
   },
 );
 
-void test(
+test(
   "reports per-URL failures from the live Contents API",
   { skip: skipWithoutApiKey },
   async () => {
@@ -102,7 +102,7 @@ void test(
   },
 );
 
-void test(
+test(
   "surfaces request errors from the live Contents API",
   { skip: skipWithoutApiKey },
   async () => {

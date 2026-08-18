@@ -10,6 +10,10 @@ Current changes are tracked under `Unreleased`. The historical alpha releases pr
 
 - Adopt the shared 2h2d Oxlint policy, including the blanket ban on non-const type assertions.
 
+### Fixed
+
+- Preserve original timeout and network failures as causes of CLI request errors.
+
 ### Security
 
 - Require npm releases to match a locally built SHA-256 recorded in an SSH-signed release commit before trusted publishing can stage the package.

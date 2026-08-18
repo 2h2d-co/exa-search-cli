@@ -23,7 +23,7 @@ after(() => {
   installed?.cleanup();
 });
 
-void test("the packed npm artifact contains and invokes the compiled CLI", () => {
+test("the packed npm artifact contains and invokes the compiled CLI", () => {
   const packedCli = getInstalled();
   const manifest = readPackedManifest(packedCli);
   assert.equal(manifest["name"], "exa-search-cli");
@@ -38,7 +38,7 @@ void test("the packed npm artifact contains and invokes the compiled CLI", () =>
   assert.equal(result.stdout.trim(), manifest["version"]);
 });
 
-void test("the packed CLI exposes schemas and accepts stdin request bodies", () => {
+test("the packed CLI exposes schemas and accepts stdin request bodies", () => {
   const packedCli = getInstalled();
   const schema = runPackedCli(packedCli, ["schema", "search"], {
     unsetEnv: ["EXA_API_KEY", "EXA_BASE_URL"],
@@ -65,7 +65,7 @@ void test("the packed CLI exposes schemas and accepts stdin request bodies", () 
   });
 });
 
-void test("the packed CLI writes protected output and keeps stable JSON errors", () => {
+test("the packed CLI writes protected output and keeps stable JSON errors", () => {
   const packedCli = getInstalled();
   const directory = mkdtempSync(join(tmpdir(), "exa-search-artifact-output-"));
   const output = join(directory, "preview.json");

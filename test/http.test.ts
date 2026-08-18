@@ -9,7 +9,7 @@ import {
   streamSearch,
 } from "../src/core.ts";
 
-void test("surfaces OpenAPI stream error events", async () => {
+test("surfaces OpenAPI stream error events", async () => {
   await withServer(
     (_request, response) => {
       response.writeHead(200, { "content-type": "text/event-stream" });
@@ -32,7 +32,7 @@ void test("surfaces OpenAPI stream error events", async () => {
   );
 });
 
-void test("rejects stream chunks outside the OpenAPI schema", async () => {
+test("rejects stream chunks outside the OpenAPI schema", async () => {
   await withServer(
     (_request, response) => {
       response.writeHead(200, { "content-type": "text/event-stream" });
@@ -55,7 +55,7 @@ void test("rejects stream chunks outside the OpenAPI schema", async () => {
   );
 });
 
-void test("requires the OpenAPI event-stream media type for synthesized streams", async () => {
+test("requires the OpenAPI event-stream media type for synthesized streams", async () => {
   await withServer(
     (_request, response) => {
       response.writeHead(200, { "content-type": "application/json" });
@@ -100,7 +100,7 @@ async function withServer(
 ): Promise<void> {
   const server = createServer((request, response) => {
     // oxlint-disable-next-line 2h2d/no-silent-error-suppression -- Destroying the response propagates handler failure to the test client.
-    void Promise.resolve(handler(request, response)).catch((error: unknown) => {
+    Promise.resolve(handler(request, response)).catch((error: unknown) => {
       response.destroy(error instanceof Error ? error : new Error(String(error)));
     });
   });
