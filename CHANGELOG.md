@@ -6,6 +6,10 @@ Current changes are tracked under `Unreleased`. The historical alpha releases pr
 
 ## Unreleased
 
+### Changed
+
+- Adopt the shared 2h2d Oxlint policy, including the blanket ban on non-const type assertions.
+
 ### Security
 
 - Require npm releases to match a locally built SHA-256 recorded in an SSH-signed release commit before trusted publishing can stage the package.

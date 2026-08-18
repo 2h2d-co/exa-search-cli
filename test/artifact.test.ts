@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { isJsonObject } from "../src/core.ts";
 import {
   assertCliSuccess,
   buildAndUnpackPackedCli,
@@ -94,8 +95,8 @@ void test("the packed CLI writes protected output and keeps stable JSON errors",
     });
     assert.equal(auth.status, 3);
     const error = parseJsonObject(auth.stderr, "authentication error")["error"];
-    assert.ok(typeof error === "object" && error !== null && !Array.isArray(error));
-    assert.equal((error as Record<string, unknown>)["kind"], "auth");
+    assert.ok(isJsonObject(error));
+    assert.equal(error["kind"], "auth");
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }

@@ -7,6 +7,11 @@ import {
   type CliRunOptions,
   contentsJson,
   hasContentErrors,
+  isJsonObject,
+  isJsonValue,
+  isString,
+  type JsonObject,
+  type JsonValue,
   parseCli,
 } from "../../src/core.ts";
 
@@ -82,18 +87,18 @@ void test(
     ]);
 
     assert.equal(execution.exitCode, 6);
-    const error = JSON.parse(execution.stderr) as {
-      error: { kind: string };
-      type: string;
-    };
-    assert.equal(error.type, "error");
-    assert.equal(error.error.kind, "partial");
-    const response = JSON.parse(execution.stdout) as unknown;
+    const error: unknown = JSON.parse(execution.stderr);
+    assert.ok(isJsonObject(error));
+    assert.equal(error["type"], "error");
+    assert.ok(isJsonObject(error["error"]));
+    assert.equal(error["error"]["kind"], "partial");
+    const response: unknown = JSON.parse(execution.stdout);
+    assert.ok(isJsonValue(response));
     assert.equal(hasContentErrors(response), true);
     const statuses = responseStatuses(response);
     assert.equal(statuses.length, 1);
     assert.equal(statuses[0]?.["status"], "error");
-    assert.ok(isRecord(statuses[0]?.["error"]));
+    assert.ok(isJsonObject(statuses[0]?.["error"]));
   },
 );
 
@@ -146,33 +151,29 @@ function parseLiveOptions(arguments_: string[]): CliRunOptions {
   return command.options;
 }
 
-function responseResults(response: unknown): Record<string, unknown>[] {
-  assert.ok(isRecord(response));
+function responseResults(response: JsonValue): JsonObject[] {
+  assert.ok(isJsonObject(response));
   assert.ok(Array.isArray(response["results"]));
-  return response["results"].filter(isRecord);
+  return response["results"].filter(isJsonObject);
 }
 
-function responseStatuses(response: unknown): Record<string, unknown>[] {
-  assert.ok(isRecord(response));
+function responseStatuses(response: JsonValue): JsonObject[] {
+  assert.ok(isJsonObject(response));
   assert.ok(Array.isArray(response["statuses"]));
-  return response["statuses"].filter(isRecord);
+  return response["statuses"].filter(isJsonObject);
 }
 
-function requiredString(record: Record<string, unknown> | undefined, field: string): string {
+function requiredString(record: JsonObject | undefined, field: string): string {
   assert.ok(record);
   const value = record[field];
-  assert.ok(typeof value === "string");
+  assert.ok(isString(value));
   return value;
 }
 
-function requiredStringArray(record: Record<string, unknown> | undefined, field: string): string[] {
+function requiredStringArray(record: JsonObject | undefined, field: string): string[] {
   assert.ok(record);
   const value = record[field];
   assert.ok(Array.isArray(value));
-  assert.ok(value.every((entry) => typeof entry === "string"));
+  assert.ok(value.every(isString));
   return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

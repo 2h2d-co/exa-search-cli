@@ -43,9 +43,10 @@
     "pack:dry": "npm run build && npm pack --dry-run --ignore-scripts --allow-directory=all"
   },
   "devDependencies": {
+    "@2h2d/oxlint-config": "0.1.0-alpha.1",
     "@types/node": "22.20.1",
-    "oxfmt": "0.62.0",
-    "oxlint": "1.77.0",
+    "oxfmt": "0.63.0",
+    "oxlint": "1.78.0",
     "oxlint-tsgolint": "7.0.2001",
     "typescript": "7.0.2"
   },

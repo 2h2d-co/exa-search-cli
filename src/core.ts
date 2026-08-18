@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 
 export const VERSION = readPackageVersion();
 
-const SEARCH_TYPES = ["auto", "fast", "instant", "deep-lite", "deep", "deep-reasoning"];
-const DEEP_SEARCH_TYPES = ["deep-lite", "deep", "deep-reasoning"];
+const SEARCH_TYPES = ["auto", "fast", "instant", "deep-lite", "deep", "deep-reasoning"] as const;
+const DEEP_SEARCH_TYPES = ["deep-lite", "deep", "deep-reasoning"] as const;
 const CATEGORIES = [
   "company",
   "publication",
@@ -11,12 +11,20 @@ const CATEGORIES = [
   "personal site",
   "financial report",
   "people",
-];
-const COMPLIANCE_MODES = ["hipaa"];
-const TEXT_VERBOSITIES = ["compact", "standard", "full"];
-const TEXT_SECTIONS = ["header", "navigation", "banner", "body", "sidebar", "footer", "metadata"];
-const OUTPUT_FORMATS = ["json", "text", "urls"];
-const ERROR_FORMATS = ["text", "json"];
+] as const;
+const COMPLIANCE_MODES = ["hipaa"] as const;
+const TEXT_VERBOSITIES = ["compact", "standard", "full"] as const;
+const TEXT_SECTIONS = [
+  "header",
+  "navigation",
+  "banner",
+  "body",
+  "sidebar",
+  "footer",
+  "metadata",
+] as const;
+const OUTPUT_FORMATS = ["json", "text", "urls"] as const;
+const ERROR_FORMATS = ["text", "json"] as const;
 const DEFAULT_NUM_RESULTS = 5;
 const DEFAULT_TEXT_MAX_CHARACTERS = 10_000;
 
@@ -33,6 +41,14 @@ export type CliErrorKind =
   | "partial"
   | "timeout"
   | "usage";
+
+export type JsonPrimitive = boolean | null | number | string;
+
+export type JsonValue = JsonObject | JsonPrimitive | JsonValue[];
+
+export type JsonObject = {
+  [key: string]: JsonValue;
+};
 
 export type CliCommand =
   | { endpoint?: CliEndpoint; kind: "help" }
@@ -53,7 +69,7 @@ export type CliRunOptions = {
   failOnErrors: boolean;
   format: OutputFormat;
   outputPath: string | undefined;
-  request: Record<string, unknown>;
+  request: JsonObject;
   stream: boolean;
   temporaryOutput: boolean;
   timeoutMs: number;
@@ -69,15 +85,15 @@ type ParseState = {
   additionalQueries: string[];
   apiKey?: string;
   baseUrl?: string;
-  bodyBase?: Record<string, unknown>;
+  bodyBase?: JsonObject;
   compact: boolean | undefined;
   dryRun: boolean;
   endpoint: CliEndpoint;
   excludeDomains: string[];
   failOnErrors: boolean;
   format: OutputFormat;
-  generated: Record<string, unknown>;
-  generatedContents: Record<string, unknown>;
+  generated: JsonObject;
+  generatedContents: JsonObject;
   ids: string[];
   includeDomains: string[];
   outputPath?: string;
@@ -88,7 +104,7 @@ type ParseState = {
   urls: string[];
 };
 
-const ERROR_EXIT_CODES: Record<CliErrorKind, number> = {
+const ERROR_EXIT_CODES = {
   api: 4,
   auth: 3,
   internal: 1,
@@ -97,17 +113,25 @@ const ERROR_EXIT_CODES: Record<CliErrorKind, number> = {
   partial: 6,
   timeout: 5,
   usage: 2,
-};
+} satisfies Record<CliErrorKind, number>;
 
 type CliErrorOptions = {
-  detail?: unknown;
+  detail?: JsonValue;
   kind?: CliErrorKind;
   refId?: string | undefined;
   status?: number | undefined;
 };
 
+type FormattedCliErrorDetail = {
+  kind: CliErrorKind;
+  message: string;
+  detail?: JsonValue;
+  ref_id?: string;
+  status?: number;
+};
+
 export class CliError extends Error {
-  detail: unknown;
+  detail: JsonValue | undefined;
   exitCode: number;
   kind: CliErrorKind;
   refId: string | undefined;
@@ -361,7 +385,7 @@ export function parseCli(
         state.generated["compliance"] = parseAllowed(readValue(), flag.name, COMPLIANCE_MODES);
         break;
       case "--format":
-        state.format = parseAllowed(readValue(), flag.name, OUTPUT_FORMATS) as OutputFormat;
+        state.format = parseAllowed(readValue(), flag.name, OUTPUT_FORMATS);
         break;
       case "--json":
         state.format = "json";
@@ -457,7 +481,7 @@ Run "exa-search help search" or "exa-search help extract" for command-specific o
 `;
 }
 
-export async function apiJson(options: CliRunOptions): Promise<unknown> {
+export async function apiJson(options: CliRunOptions): Promise<JsonValue> {
   if (options.apiKey === undefined || options.apiKey.trim() === "") {
     throw new CliError("Missing API key. Set EXA_API_KEY or pass --api-key.", {
       kind: "auth",
@@ -466,7 +490,11 @@ export async function apiJson(options: CliRunOptions): Promise<unknown> {
 
   const response = await postEndpoint({ ...options, apiKey: options.apiKey }, "application/json");
   try {
-    return await response.json();
+    const value: unknown = await response.json();
+    if (!isJsonValue(value)) {
+      throw new Error("Response was not JSON data");
+    }
+    return value;
   } catch {
     throw new CliError(`API returned invalid JSON with status ${response.status}`, {
       kind: "api",
@@ -475,14 +503,14 @@ export async function apiJson(options: CliRunOptions): Promise<unknown> {
   }
 }
 
-export async function searchJson(options: CliRunOptions): Promise<unknown> {
+export async function searchJson(options: CliRunOptions): Promise<JsonValue> {
   if (options.endpoint !== "search") {
     throw new CliError("searchJson requires Search options", { kind: "internal" });
   }
   return apiJson(options);
 }
 
-export async function contentsJson(options: CliRunOptions): Promise<unknown> {
+export async function contentsJson(options: CliRunOptions): Promise<JsonValue> {
   if (options.endpoint !== "contents") {
     throw new CliError("contentsJson requires Extract options", { kind: "internal" });
   }
@@ -502,16 +530,20 @@ export async function streamSearch(
     });
   }
 
-  const expectsEventStream = isRecord(options.request["outputSchema"]);
+  const expectsEventStream = isJsonObject(options.request["outputSchema"]);
   const response = await postEndpoint(
     { ...options, apiKey: options.apiKey },
     expectsEventStream ? "text/event-stream" : "application/json",
   );
 
   if (!expectsEventStream) {
-    let responseBody: unknown;
+    let responseBody: JsonValue;
     try {
-      responseBody = await response.json();
+      const value: unknown = await response.json();
+      if (!isJsonValue(value)) {
+        throw new Error("Response was not JSON data");
+      }
+      responseBody = value;
     } catch {
       throw new CliError(`API returned invalid JSON with status ${response.status}`, {
         kind: "api",
@@ -559,7 +591,15 @@ export async function streamSearch(
   }
 }
 
-export function requestPreview(options: CliRunOptions): Record<string, unknown> {
+export type RequestPreview = {
+  endpoint: ApiEndpoint;
+  method: "POST";
+  request: JsonObject;
+  timeout_ms: number;
+  url: string;
+};
+
+export function requestPreview(options: CliRunOptions): RequestPreview {
   return {
     endpoint: options.endpoint,
     method: "POST",
@@ -569,7 +609,11 @@ export function requestPreview(options: CliRunOptions): Record<string, unknown> 
   };
 }
 
-export function formatResponse(response: unknown, format: OutputFormat, compact: boolean): string {
+export function formatResponse(
+  response: JsonValue,
+  format: OutputFormat,
+  compact: boolean,
+): string {
   switch (format) {
     case "json": {
       const json = JSON.stringify(response, null, compact ? 0 : 2);
@@ -627,7 +671,7 @@ export function formatCliError(error: unknown, format: ErrorFormat): string {
       : `${cliError.message} (ref_id: ${cliError.refId})`;
   }
 
-  const detail: Record<string, unknown> = {
+  const detail: FormattedCliErrorDetail = {
     kind: cliError.kind,
     message: cliError.message,
   };
@@ -644,11 +688,11 @@ export function formatCliError(error: unknown, format: ErrorFormat): string {
   return JSON.stringify({ error: detail, type: "error" });
 }
 
-export function contentResponseErrors(response: unknown): Record<string, unknown>[] {
+export function contentResponseErrors(response: JsonValue): JsonObject[] {
   return extractStatuses(response).filter((status) => status["status"] === "error");
 }
 
-export function hasContentErrors(response: unknown): boolean {
+export function hasContentErrors(response: JsonValue): boolean {
   return contentResponseErrors(response).length > 0;
 }
 
@@ -991,22 +1035,14 @@ function appendContentArray(
   values: string[],
 ): void {
   const object = getRecord(state.generatedContents[objectField]);
-  const existing = Array.isArray(object[arrayField])
-    ? object[arrayField].filter((value): value is string => typeof value === "string")
-    : [];
+  const existing = Array.isArray(object[arrayField]) ? object[arrayField].filter(isString) : [];
   state.generatedContents[objectField] = mergeObjects(object, {
     [arrayField]: uniqueStrings([...existing, ...values]),
   });
 }
 
-function appendTopLevelArray(
-  target: Record<string, unknown>,
-  field: string,
-  values: string[],
-): void {
-  const existing = Array.isArray(target[field])
-    ? target[field].filter((value): value is string => typeof value === "string")
-    : [];
+function appendTopLevelArray(target: JsonObject, field: string, values: string[]): void {
+  const existing = Array.isArray(target[field]) ? target[field].filter(isString) : [];
   target[field] = uniqueStrings([...existing, ...values]);
 }
 
@@ -1101,10 +1137,7 @@ function buildCommand(state: ParseState, env: Environment): CliCommand {
   };
 }
 
-function applyRequestDefaults(
-  endpoint: CliEndpoint,
-  request: Record<string, unknown>,
-): Record<string, unknown> {
+function applyRequestDefaults(endpoint: CliEndpoint, request: JsonObject): JsonObject {
   if (endpoint === "search") {
     const withDefaults = mergeObjects(
       {
@@ -1114,7 +1147,7 @@ function applyRequestDefaults(
       request,
     );
     const contents = withDefaults["contents"];
-    if (contents === null || (contents !== undefined && !isRecord(contents))) {
+    if (contents === null || (contents !== undefined && !isJsonObject(contents))) {
       return withDefaults;
     }
 
@@ -1135,11 +1168,11 @@ function applyRequestDefaults(
   return mergeObjects(request, { highlights: true });
 }
 
-function hasContentSelection(value: Record<string, unknown>): boolean {
+function hasContentSelection(value: JsonObject): boolean {
   return ["context", "highlights", "summary", "text"].some((field) => Object.hasOwn(value, field));
 }
 
-function validateRequest(endpoint: CliEndpoint, request: Record<string, unknown>): void {
+function validateRequest(endpoint: CliEndpoint, request: JsonObject): void {
   if (endpoint === "search") {
     validateSearchRequest(request);
   } else {
@@ -1147,7 +1180,7 @@ function validateRequest(endpoint: CliEndpoint, request: Record<string, unknown>
   }
 }
 
-function validateSearchRequest(request: Record<string, unknown>): void {
+function validateSearchRequest(request: JsonObject): void {
   assertStringValue(request["query"], "query");
 
   rejectDeprecatedField(request, "startCrawlDate", "Remove startCrawlDate; it has no effect");
@@ -1167,15 +1200,12 @@ function validateSearchRequest(request: Record<string, unknown>): void {
   }
 
   if (isPresent(request["userLocation"])) {
-    if (
-      typeof request["userLocation"] !== "string" ||
-      !/^[A-Za-z]{2}$/.test(request["userLocation"])
-    ) {
+    if (!isString(request["userLocation"]) || !/^[A-Za-z]{2}$/.test(request["userLocation"])) {
       throw new CliError("userLocation must be a two-letter ISO country code or null");
     }
   }
 
-  if (isPresent(request["moderation"]) && typeof request["moderation"] !== "boolean") {
+  if (isPresent(request["moderation"]) && !isBoolean(request["moderation"])) {
     throw new CliError("moderation must be a boolean or null");
   }
 
@@ -1194,7 +1224,7 @@ function validateSearchRequest(request: Record<string, unknown>): void {
     assertStringValue(request["systemPrompt"], "systemPrompt");
   }
 
-  if (isPresent(request["stream"]) && typeof request["stream"] !== "boolean") {
+  if (isPresent(request["stream"]) && !isBoolean(request["stream"])) {
     throw new CliError("stream must be a boolean or null");
   }
 
@@ -1215,7 +1245,7 @@ function validateSearchRequest(request: Record<string, unknown>): void {
 
   if (Array.isArray(request["additionalQueries"]) && request["additionalQueries"].length > 0) {
     const type = request["type"];
-    if (typeof type !== "string" || !DEEP_SEARCH_TYPES.includes(type)) {
+    if (!isString(type) || !DEEP_SEARCH_TYPES.some((candidate) => candidate === type)) {
       throw new CliError("additionalQueries is only available for deep search types");
     }
   }
@@ -1236,7 +1266,7 @@ function validateSearchRequest(request: Record<string, unknown>): void {
   }
 }
 
-function validateContentsRequest(request: Record<string, unknown>): void {
+function validateContentsRequest(request: JsonObject): void {
   const hasIds = isPresent(request["ids"]);
   const hasUrls = isPresent(request["urls"]);
   if (hasIds === hasUrls) {
@@ -1262,7 +1292,7 @@ function validateContentsOptions(value: unknown, prefix: string): void {
   if (value === null) {
     return;
   }
-  if (!isRecord(value)) {
+  if (!isJsonObject(value)) {
     throw new CliError(`${prefix || "Contents request"} must be an object or null`);
   }
 
@@ -1302,7 +1332,7 @@ function validateContentsOptions(value: unknown, prefix: string): void {
 }
 
 function validateTextOptions(value: unknown, field: string): void {
-  if (!isRecord(value)) {
+  if (!isJsonObject(value)) {
     return;
   }
 
@@ -1313,7 +1343,7 @@ function validateTextOptions(value: unknown, field: string): void {
     });
   }
 
-  if (isPresent(value["includeHtmlTags"]) && typeof value["includeHtmlTags"] !== "boolean") {
+  if (isPresent(value["includeHtmlTags"]) && !isBoolean(value["includeHtmlTags"])) {
     throw new CliError(`${field}.includeHtmlTags must be a boolean or null`);
   }
 
@@ -1330,7 +1360,7 @@ function validateTextOptions(value: unknown, field: string): void {
 }
 
 function validateHighlightOptions(value: unknown, field: string): void {
-  if (!isRecord(value)) {
+  if (!isJsonObject(value)) {
     return;
   }
 
@@ -1358,7 +1388,7 @@ function validateHighlightOptions(value: unknown, field: string): void {
 }
 
 function validateSummaryOptions(value: unknown, field: string): void {
-  if (!isRecord(value)) {
+  if (!isJsonObject(value)) {
     return;
   }
 
@@ -1366,7 +1396,7 @@ function validateSummaryOptions(value: unknown, field: string): void {
     assertStringValue(value["query"], `${field}.query`);
   }
 
-  if (isPresent(value["schema"]) && !isRecord(value["schema"])) {
+  if (isPresent(value["schema"]) && !isJsonObject(value["schema"])) {
     throw new CliError(`${field}.schema must be an object or null`);
   }
 }
@@ -1376,7 +1406,7 @@ function validateSubpageTarget(value: unknown, field: string): void {
     return;
   }
 
-  if (typeof value === "string") {
+  if (isString(value)) {
     if (value.length < 1 || value.length > 100) {
       throw new CliError(`${field} must contain between 1 and 100 characters`);
     }
@@ -1394,7 +1424,7 @@ function validateExtras(value: unknown, field: string): void {
   if (!isPresent(value)) {
     return;
   }
-  if (!isRecord(value)) {
+  if (!isJsonObject(value)) {
     throw new CliError(`${field} must be an object or null`);
   }
 
@@ -1409,7 +1439,7 @@ function validateOutputSchema(value: unknown): void {
   if (!isPresent(value)) {
     return;
   }
-  if (!isRecord(value)) {
+  if (!isJsonObject(value)) {
     throw new CliError("outputSchema must be an object or null");
   }
 
@@ -1418,29 +1448,26 @@ function validateOutputSchema(value: unknown): void {
     throw new CliError('outputSchema.type must be "text" or "object"');
   }
 
-  if (value["description"] !== undefined && typeof value["description"] !== "string") {
+  if (value["description"] !== undefined && !isString(value["description"])) {
     throw new CliError("outputSchema.description must be a string");
   }
 
   if (type === "object") {
-    if (value["properties"] !== undefined && !isRecord(value["properties"])) {
+    if (value["properties"] !== undefined && !isJsonObject(value["properties"])) {
       throw new CliError("outputSchema.properties must be an object");
     }
     if (value["required"] === null) {
       throw new CliError("outputSchema.required must be an array of strings");
     }
     validateStringArray(value["required"], "outputSchema.required");
-    if (
-      value["additionalProperties"] !== undefined &&
-      typeof value["additionalProperties"] !== "boolean"
-    ) {
+    if (value["additionalProperties"] !== undefined && !isBoolean(value["additionalProperties"])) {
       throw new CliError("outputSchema.additionalProperties must be a boolean");
     }
   }
 }
 
 function rejectDeprecatedField(
-  value: Record<string, unknown>,
+  value: JsonObject,
   field: string,
   replacement: string,
   prefix = "",
@@ -1487,19 +1514,22 @@ async function postEndpoint(
 async function buildHttpError(response: Response): Promise<CliError> {
   const text = (await response.text()).trim();
   const statusLabel = `${response.status} ${response.statusText}`.trim();
-  let detail: unknown;
+  let detail: JsonValue | undefined;
   let message = statusLabel;
   let refId: string | undefined;
 
   if (text !== "") {
     try {
-      const parsed = JSON.parse(text) as unknown;
+      const parsed: unknown = JSON.parse(text);
+      if (!isJsonValue(parsed)) {
+        throw new Error("Response was not JSON data");
+      }
       detail = parsed;
-      if (isRecord(parsed)) {
+      if (isJsonObject(parsed)) {
         const nestedError = parsed["error"];
-        if (typeof nestedError === "string") {
+        if (isString(nestedError)) {
           message = `${statusLabel}: ${nestedError}`;
-        } else if (isRecord(nestedError)) {
+        } else if (isJsonObject(nestedError)) {
           const nestedMessage = stringField(nestedError, "message");
           if (nestedMessage !== undefined) {
             message = `${statusLabel}: ${nestedMessage}`;
@@ -1531,12 +1561,17 @@ async function buildHttpError(response: Response): Promise<CliError> {
     }
   }
 
-  return new CliError(message, {
-    detail,
+  const options: CliErrorOptions = {
     kind: response.status === 401 ? "auth" : "api",
-    refId,
     status: response.status,
-  });
+  };
+  if (detail !== undefined) {
+    options.detail = detail;
+  }
+  if (refId !== undefined) {
+    options.refId = refId;
+  }
+  return new CliError(message, options);
 }
 
 function writeSseContent(event: string, write: (chunk: string) => void): void {
@@ -1550,14 +1585,18 @@ function writeSseContent(event: string, write: (chunk: string) => void): void {
     return;
   }
 
-  let parsed: unknown;
+  let parsed: JsonValue;
   try {
-    parsed = JSON.parse(data) as unknown;
+    const value: unknown = JSON.parse(data);
+    if (!isJsonValue(value)) {
+      throw new Error("Stream event was not JSON data");
+    }
+    parsed = value;
   } catch {
     throw new CliError("Search stream contained invalid JSON data", { kind: "api" });
   }
 
-  if (!isRecord(parsed)) {
+  if (!isJsonObject(parsed)) {
     throw new CliError("Search stream event must be an object", { kind: "api" });
   }
 
@@ -1570,14 +1609,13 @@ function writeSseContent(event: string, write: (chunk: string) => void): void {
     }
     throw new CliError("Search stream event must include a type", { kind: "api" });
   }
-  if (typeof type !== "string") {
+  if (!isString(type)) {
     throw new CliError("Search stream event type must be a string", { kind: "api" });
   }
 
   switch (type) {
     case "text-delta": {
-      const delta =
-        typeof parsed["delta"] === "string" ? parsed["delta"] : streamChoiceContent(parsed);
+      const delta = isString(parsed["delta"]) ? parsed["delta"] : streamChoiceContent(parsed);
       if (delta === undefined) {
         throw new CliError("Search text-delta event must include text", { kind: "api" });
       }
@@ -1585,7 +1623,7 @@ function writeSseContent(event: string, write: (chunk: string) => void): void {
       return;
     }
     case "error":
-      if (!isRecord(parsed["error"]) || typeof parsed["error"]["message"] !== "string") {
+      if (!isJsonObject(parsed["error"]) || !isString(parsed["error"]["message"])) {
         throw new CliError("Search error event must include an error message", { kind: "api" });
       }
       throw new CliError(`Search stream error: ${parsed["error"]["message"]}`, { kind: "api" });
@@ -1599,17 +1637,17 @@ function writeSseContent(event: string, write: (chunk: string) => void): void {
   }
 }
 
-function streamChoiceContent(event: Record<string, unknown>): string | undefined {
+function streamChoiceContent(event: JsonObject): string | undefined {
   if (!Array.isArray(event["choices"])) {
     return undefined;
   }
 
   for (const choice of event["choices"]) {
-    if (!isRecord(choice) || !isRecord(choice["delta"])) {
+    if (!isJsonObject(choice) || !isJsonObject(choice["delta"])) {
       continue;
     }
     const content = choice["delta"]["content"];
-    if (typeof content === "string") {
+    if (isString(content)) {
       return content;
     }
   }
@@ -1617,12 +1655,12 @@ function streamChoiceContent(event: Record<string, unknown>): string | undefined
   return undefined;
 }
 
-function formatTextResponse(response: unknown): string {
+function formatTextResponse(response: JsonValue): string {
   const lines: string[] = [];
 
   if (
-    isRecord(response) &&
-    isRecord(response["output"]) &&
+    isJsonObject(response) &&
+    isJsonObject(response["output"]) &&
     response["output"]["content"] !== undefined
   ) {
     lines.push(formatContentValue(response["output"]["content"]));
@@ -1654,7 +1692,7 @@ function formatTextResponse(response: unknown): string {
     if (Array.isArray(result["highlights"]) && result["highlights"].length > 0) {
       lines.push("   Highlights:");
       for (const highlight of result["highlights"]) {
-        if (typeof highlight === "string") {
+        if (isString(highlight)) {
           lines.push(indentBlock(highlight, "   - ", "     "));
         }
       }
@@ -1679,13 +1717,10 @@ function formatTextResponse(response: unknown): string {
       if (source !== undefined) {
         line += ` (${source})`;
       }
-      if (isRecord(status["error"])) {
+      if (isJsonObject(status["error"])) {
         const tag = stringField(status["error"], "tag");
         const httpStatusCode = status["error"]["httpStatusCode"];
-        const details = [
-          tag,
-          typeof httpStatusCode === "number" ? `HTTP ${httpStatusCode}` : undefined,
-        ]
+        const details = [tag, isNumber(httpStatusCode) ? `HTTP ${httpStatusCode}` : undefined]
           .filter((value) => value !== undefined)
           .join(", ");
         if (details !== "") {
@@ -1697,13 +1732,13 @@ function formatTextResponse(response: unknown): string {
     lines.push("");
   }
 
-  if (isRecord(response)) {
+  if (isJsonObject(response)) {
     const requestId = stringField(response, "requestId");
     if (requestId !== undefined) {
       lines.push(`requestId: ${requestId}`);
     }
 
-    if (isRecord(response["costDollars"]) && typeof response["costDollars"]["total"] === "number") {
+    if (isJsonObject(response["costDollars"]) && isNumber(response["costDollars"]["total"])) {
       lines.push(`costDollars.total: ${response["costDollars"]["total"]}`);
     }
   }
@@ -1711,14 +1746,14 @@ function formatTextResponse(response: unknown): string {
   return trimTrailingBlankLines(lines).join("\n");
 }
 
-function appendGrounding(output: Record<string, unknown>, lines: string[]): void {
+function appendGrounding(output: JsonObject, lines: string[]): void {
   if (!Array.isArray(output["grounding"]) || output["grounding"].length === 0) {
     return;
   }
 
   lines.push("Grounding:");
   for (const entry of output["grounding"]) {
-    if (!isRecord(entry)) {
+    if (!isJsonObject(entry)) {
       continue;
     }
     const field = stringField(entry, "field") ?? "content";
@@ -1728,7 +1763,7 @@ function appendGrounding(output: Record<string, unknown>, lines: string[]): void
       continue;
     }
     for (const citation of entry["citations"]) {
-      if (!isRecord(citation)) {
+      if (!isJsonObject(citation)) {
         continue;
       }
       const url = stringField(citation, "url");
@@ -1741,24 +1776,24 @@ function appendGrounding(output: Record<string, unknown>, lines: string[]): void
   lines.push("");
 }
 
-function extractResults(response: unknown): Record<string, unknown>[] {
-  if (!isRecord(response) || !Array.isArray(response["results"])) {
+function extractResults(response: JsonValue): JsonObject[] {
+  if (!isJsonObject(response) || !Array.isArray(response["results"])) {
     return [];
   }
 
-  return response["results"].filter(isRecord);
+  return response["results"].filter(isJsonObject);
 }
 
-function extractStatuses(response: unknown): Record<string, unknown>[] {
-  if (!isRecord(response) || !Array.isArray(response["statuses"])) {
+function extractStatuses(response: JsonValue): JsonObject[] {
+  if (!isJsonObject(response) || !Array.isArray(response["statuses"])) {
     return [];
   }
 
-  return response["statuses"].filter(isRecord);
+  return response["statuses"].filter(isJsonObject);
 }
 
-function formatContentValue(value: unknown): string {
-  if (typeof value === "string") {
+function formatContentValue(value: JsonValue): string {
+  if (isString(value)) {
     return value;
   }
 
@@ -1781,7 +1816,12 @@ function trimTrailingBlankLines(lines: string[]): string[] {
   return lines.slice(0, end);
 }
 
-function splitFlag(value: string): { name: string; inlineValue?: string } {
+type SplitFlag = {
+  name: string;
+  inlineValue?: string;
+};
+
+function splitFlag(value: string): SplitFlag {
   if (!value.startsWith("--")) {
     return { name: value };
   }
@@ -1803,13 +1843,9 @@ function ensureEndpoint(actual: CliEndpoint, expected: CliEndpoint, flag: string
   }
 }
 
-function parseJsonObject(
-  value: string,
-  flag: string,
-  readStdin: StdinReader,
-): Record<string, unknown> {
+function parseJsonObject(value: string, flag: string, readStdin: StdinReader): JsonObject {
   const parsed = parseJsonOrFile(value, flag, readStdin);
-  if (!isRecord(parsed)) {
+  if (!isJsonObject(parsed)) {
     throw new CliError(`${flag} must be a JSON object`);
   }
 
@@ -1822,11 +1858,15 @@ function parseJsonStringArray(value: string, flag: string, readStdin: StdinReade
   return parsed ?? [];
 }
 
-function parseJsonOrFile(value: string, flag: string, readStdin: StdinReader): unknown {
+function parseJsonOrFile(value: string, flag: string, readStdin: StdinReader): JsonValue {
   const source = value.startsWith("@") ? readJsonFile(value.slice(1), flag, readStdin) : value;
 
   try {
-    return JSON.parse(source) as unknown;
+    const parsed: unknown = JSON.parse(source);
+    if (!isJsonValue(parsed)) {
+      throw new Error("Input was not JSON data");
+    }
+    return parsed;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new CliError(`${flag} contains invalid JSON: ${reason}`);
@@ -1866,7 +1906,7 @@ function assertIntegerValue(
   field: string,
   bounds: { min?: number; max?: number },
 ): void {
-  if (typeof value !== "number" || !Number.isInteger(value)) {
+  if (!isNumber(value) || !Number.isInteger(value)) {
     throw new CliError(`${field} must be an integer`);
   }
 
@@ -1879,7 +1919,7 @@ function assertIntegerValue(
 }
 
 function assertDateTimeValue(value: unknown, field: string): void {
-  if (typeof value !== "string") {
+  if (!isString(value)) {
     throw new CliError(`${field} must be an RFC 3339 date-time string`);
   }
 
@@ -1929,16 +1969,21 @@ function assertDateTimeValue(value: unknown, field: string): void {
   }
 }
 
-function parseAllowed(value: string, flag: string, allowed: readonly string[]): string {
-  if (!allowed.includes(value)) {
-    throw new CliError(`${flag} must be one of: ${allowed.join(", ")}`);
+function parseAllowed<const Values extends readonly string[]>(
+  value: string,
+  flag: string,
+  allowed: Values,
+): Values[number] {
+  for (const candidate of allowed) {
+    if (candidate === value) {
+      return candidate;
+    }
   }
-
-  return value;
+  throw new CliError(`${flag} must be one of: ${allowed.join(", ")}`);
 }
 
 function assertAllowedValue(value: unknown, field: string, allowed: readonly string[]): void {
-  if (typeof value !== "string" || !allowed.includes(value)) {
+  if (!isString(value) || !allowed.includes(value)) {
     throw new CliError(`${field} must be one of: ${allowed.join(", ")}`);
   }
 }
@@ -1975,7 +2020,7 @@ function validateStringArray(
   if (!isPresent(value)) {
     return;
   }
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+  if (!Array.isArray(value) || value.some((entry) => !isString(entry))) {
     throw new CliError(`${field} must be an array of strings or null`);
   }
 
@@ -2004,7 +2049,7 @@ function validateStringArray(
 }
 
 function validateBooleanOrObject(value: unknown, field: string): void {
-  if (!isPresent(value) || typeof value === "boolean" || isRecord(value)) {
+  if (!isPresent(value) || isBoolean(value) || isJsonObject(value)) {
     return;
   }
 
@@ -2012,7 +2057,7 @@ function validateBooleanOrObject(value: unknown, field: string): void {
 }
 
 function validateObjectOrNull(value: unknown, field: string): void {
-  if (!isPresent(value) || isRecord(value)) {
+  if (!isPresent(value) || isJsonObject(value)) {
     return;
   }
 
@@ -2023,15 +2068,13 @@ function nestedField(prefix: string, field: string): string {
   return prefix === "" ? field : `${prefix}.${field}`;
 }
 
-function mergeObjects(
-  base: Record<string, unknown>,
-  override: Record<string, unknown>,
-): Record<string, unknown> {
-  const merged: Record<string, unknown> = { ...base };
+function mergeObjects(base: JsonObject, override: JsonObject) {
+  const merged: JsonObject = {};
+  Object.assign(merged, base);
 
   for (const [key, value] of Object.entries(override)) {
     const baseValue = merged[key];
-    if (isRecord(baseValue) && isRecord(value)) {
+    if (isJsonObject(baseValue) && isJsonObject(value)) {
       merged[key] = mergeObjects(baseValue, value);
     } else {
       merged[key] = value;
@@ -2041,32 +2084,54 @@ function mergeObjects(
   return merged;
 }
 
-function getRecord(value: unknown): Record<string, unknown> {
-  return isRecord(value) ? value : {};
+function getRecord(value: JsonValue | undefined) {
+  return isJsonObject(value) ? value : {};
 }
 
 function isPresent(value: unknown): boolean {
   return value !== undefined && value !== null;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+export function isBoolean(value: unknown): value is boolean {
+  return typeof value === "boolean";
+}
+
+export function isNumber(value: unknown): value is number {
+  return typeof value === "number";
+}
+
+export function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+export function isJsonValue(value: unknown): value is JsonValue {
+  if (value === null || isBoolean(value) || isNumber(value) || isString(value)) {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.every(isJsonValue);
+  }
+  return typeof value === "object" && Object.values(value).every(isJsonValue);
+}
+
+export function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === "object" && isJsonValue(value) && value !== null && !Array.isArray(value);
 }
 
 function readPackageVersion(): string {
   const packageJson: unknown = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   );
-  if (!isRecord(packageJson) || typeof packageJson["version"] !== "string") {
+  if (!isJsonObject(packageJson) || !isString(packageJson["version"])) {
     throw new Error("package.json must include a string version");
   }
 
   return packageJson["version"];
 }
 
-function stringField(record: Record<string, unknown>, field: string): string | undefined {
+function stringField(record: JsonObject, field: string): string | undefined {
   const value = record[field];
-  return typeof value === "string" && value !== "" ? value : undefined;
+  return isString(value) && value !== "" ? value : undefined;
 }
 
 function apiUrl(baseUrl: string, endpoint: ApiEndpoint): string {

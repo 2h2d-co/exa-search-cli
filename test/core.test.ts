@@ -7,6 +7,9 @@ import {
   formatResponse,
   hasContentErrors,
   helpText,
+  isJsonObject,
+  isString,
+  type JsonObject,
   parseCli,
   requestPreview,
   VERSION,
@@ -566,9 +569,10 @@ void test("supports short aliases and explicit disabling overrides", () => {
 });
 
 void test("exposes machine-readable schemas with CLI defaults", () => {
-  const search = requestSchema("search");
+  const search: JsonObject = requestSchema("search");
   assert.deepEqual(search["required"], ["query"]);
-  const searchProperties = search["properties"] as Record<string, unknown>;
+  const searchProperties = search["properties"];
+  assert.ok(isJsonObject(searchProperties));
   assert.deepEqual(searchProperties["type"], {
     anyOf: [
       {
@@ -579,18 +583,15 @@ void test("exposes machine-readable schemas with CLI defaults", () => {
       { type: "null" },
     ],
   });
-  assert.equal(
-    ((searchProperties["numResults"] as Record<string, unknown>)["anyOf"] as unknown[])[0] &&
-      (
-        (searchProperties["numResults"] as Record<string, unknown>)["anyOf"] as Record<
-          string,
-          unknown
-        >[]
-      )[0]?.["default"],
-    5,
-  );
+  const numResults = searchProperties["numResults"];
+  assert.ok(isJsonObject(numResults));
+  const alternatives = numResults["anyOf"];
+  assert.ok(Array.isArray(alternatives));
+  const numericSchema = alternatives[0];
+  assert.ok(isJsonObject(numericSchema));
+  assert.equal(numericSchema["default"], 5);
 
-  const extract = requestSchema("extract");
+  const extract: JsonObject = requestSchema("extract");
   assert.deepEqual(extract["oneOf"], [{ required: ["urls"] }, { required: ["ids"] }]);
 });
 
@@ -622,12 +623,12 @@ void test("documents agent-oriented defaults and the complete command surface", 
 });
 
 void test("reports the package version", () => {
-  const packageJson = JSON.parse(
+  const packageJson: unknown = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-  ) as {
-    version: string;
-  };
-  assert.equal(VERSION, packageJson.version);
+  );
+  assert.ok(isJsonObject(packageJson));
+  assert.ok(isString(packageJson["version"]));
+  assert.equal(VERSION, packageJson["version"]);
 });
 
 void test("formats URLs, content, grounding, statuses, and metadata", () => {

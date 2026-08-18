@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
 import test from "node:test";
-import { CliError, type CliRunOptions, streamSearch } from "../src/core.ts";
+import {
+  CliError,
+  isString,
+  type CliRunOptions,
+  type JsonObject,
+  streamSearch,
+} from "../src/core.ts";
 
 void test("surfaces OpenAPI stream error events", async () => {
   await withServer(
@@ -72,7 +77,7 @@ void test("requires the OpenAPI event-stream media type for synthesized streams"
   );
 });
 
-function makeOptions(baseUrl: string, request: Record<string, unknown>): CliRunOptions {
+function makeOptions(baseUrl: string, request: JsonObject): CliRunOptions {
   return {
     apiKey: "test-key",
     baseUrl,
@@ -104,7 +109,10 @@ async function withServer(
     server.listen(0, "127.0.0.1", resolve);
   });
 
-  const address = server.address() as AddressInfo;
+  const address = server.address();
+  if (address === null || isString(address)) {
+    throw new Error("Test server did not bind to an IP address");
+  }
   try {
     await run(`http://127.0.0.1:${address.port}`);
   } finally {

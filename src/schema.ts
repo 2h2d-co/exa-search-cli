@@ -1,10 +1,10 @@
-import type { CliEndpoint } from "./core.ts";
+import type { CliEndpoint, JsonObject } from "./core.ts";
 
-const nullable = (schema: Record<string, unknown>): Record<string, unknown> => ({
+const nullable = (schema: JsonObject) => ({
   anyOf: [schema, { type: "null" }],
 });
 
-const stringArray = (options: Record<string, unknown> = {}): Record<string, unknown> => ({
+const stringArray = (options: JsonObject = {}) => ({
   items: { minLength: 1, type: "string" },
   type: "array",
   ...options,
@@ -166,7 +166,7 @@ const searchSchema = {
   required: ["query"],
   title: "Exa Search request",
   type: "object",
-};
+} satisfies JsonObject;
 
 const sourceArray = stringArray({
   items: { maxLength: 2048, minLength: 1, type: "string" },
@@ -187,8 +187,8 @@ const extractSchema = {
   },
   title: "Exa Contents request",
   type: "object",
-};
+} satisfies JsonObject;
 
-export function requestSchema(endpoint: CliEndpoint): Record<string, unknown> {
+export function requestSchema(endpoint: CliEndpoint) {
   return endpoint === "search" ? searchSchema : extractSchema;
 }

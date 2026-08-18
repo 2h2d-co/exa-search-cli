@@ -12,6 +12,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isJsonObject, isString, type JsonObject } from "../../src/core.ts";
+
 const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 export type CommandResult = {
@@ -61,12 +63,12 @@ export function buildAndUnpackPackedCli(): PackedCli {
       sourceRoot,
     );
     const packOutput: unknown = JSON.parse(packResult.stdout);
-    if (!Array.isArray(packOutput) || !isRecord(packOutput[0])) {
+    if (!Array.isArray(packOutput) || !isJsonObject(packOutput[0])) {
       throw new Error("npm pack did not return package metadata");
     }
 
     const filename = packOutput[0]["filename"];
-    if (typeof filename !== "string" || filename.length === 0) {
+    if (!isString(filename) || filename.length === 0) {
       throw new Error("npm pack did not return a tarball filename");
     }
 
@@ -120,18 +122,18 @@ export function runPackedCli(
   };
 }
 
-export function readPackedManifest(packedCli: PackedCli): Record<string, unknown> {
+export function readPackedManifest(packedCli: PackedCli): JsonObject {
   const manifest: unknown = JSON.parse(
     readFileSync(join(packedCli.packageRoot, "package.json"), "utf8"),
   );
-  if (!isRecord(manifest)) {
+  if (!isJsonObject(manifest)) {
     throw new Error("Packed package manifest is not an object");
   }
 
   return manifest;
 }
 
-export function parseJsonObject(output: string, description: string): Record<string, unknown> {
+export function parseJsonObject(output: string, description: string): JsonObject {
   let value: unknown;
   try {
     value = JSON.parse(output);
@@ -139,7 +141,7 @@ export function parseJsonObject(output: string, description: string): Record<str
     throw new Error(`${description} was not valid JSON`);
   }
 
-  if (!isRecord(value)) {
+  if (!isJsonObject(value)) {
     throw new Error(`${description} was not a JSON object`);
   }
 
@@ -207,8 +209,4 @@ function runChecked(command: string, args: string[], cwd: string): CommandResult
     stderr: result.stderr,
     stdout: result.stdout,
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

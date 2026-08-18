@@ -3,6 +3,11 @@ import test from "node:test";
 import {
   CliError,
   type CliRunOptions,
+  isJsonObject,
+  isJsonValue,
+  isString,
+  type JsonObject,
+  type JsonValue,
   parseCli,
   searchJson,
   streamSearch,
@@ -63,7 +68,9 @@ void test(
       },
     );
 
-    assert.equal(responseResults(JSON.parse(output) as unknown).length, 1);
+    const response: unknown = JSON.parse(output);
+    assert.ok(isJsonValue(response));
+    assert.equal(responseResults(response).length, 1);
   },
 );
 
@@ -115,19 +122,15 @@ function parseLiveOptions(arguments_: string[]): CliRunOptions {
   return command.options;
 }
 
-function responseResults(response: unknown): Record<string, unknown>[] {
-  assert.ok(isRecord(response));
+function responseResults(response: JsonValue): JsonObject[] {
+  assert.ok(isJsonObject(response));
   assert.ok(Array.isArray(response["results"]));
-  return response["results"].filter(isRecord);
+  return response["results"].filter(isJsonObject);
 }
 
-function requiredString(record: Record<string, unknown> | undefined, field: string): string {
+function requiredString(record: JsonObject | undefined, field: string): string {
   assert.ok(record);
   const value = record[field];
-  assert.ok(typeof value === "string");
+  assert.ok(isString(value));
   return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
