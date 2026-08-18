@@ -137,8 +137,8 @@ export function parseJsonObject(output: string, description: string): JsonObject
   let value: unknown;
   try {
     value = JSON.parse(output);
-  } catch {
-    throw new Error(`${description} was not valid JSON`);
+  } catch (error) {
+    throw new Error(`${description} was not valid JSON`, { cause: error });
   }
 
   if (!isJsonObject(value)) {

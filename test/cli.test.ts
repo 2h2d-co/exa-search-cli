@@ -6,6 +6,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import { isJsonObject } from "../src/core.ts";
+
 const cliPath = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 
 void test("writes output atomically and refuses to replace existing files", () => {
@@ -91,7 +93,10 @@ void test("uses compact JSON and structured errors outside an interactive termin
 
   const auth = runCliSync(["search", "Exa Search API", "--json"]);
   assert.equal(auth.status, 3);
-  assert.equal(JSON.parse(auth.stderr).error.kind, "auth");
+  const authError: unknown = JSON.parse(auth.stderr);
+  assert.ok(isJsonObject(authError));
+  assert.ok(isJsonObject(authError["error"]));
+  assert.equal(authError["error"]["kind"], "auth");
 
   const text = runCliSync(["search", "Exa Search API", "--error-format", "text"]);
   assert.equal(text.status, 3);

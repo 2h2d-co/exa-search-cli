@@ -50,12 +50,13 @@ export function writeOutputFile(path: string, content: string): OutputReceipt {
       code === "EEXIST"
         ? `Output file already exists: ${output}`
         : `Could not write output file: ${error instanceof Error ? error.message : String(error)}`;
-    throw new CliError(message, { kind: "output" });
+    throw new CliError(message, { cause: error, kind: "output" });
   } finally {
     try {
       unlinkSync(temporary);
-    } catch {
-      // The temporary file was already removed or was never created.
+      // oxlint-disable-next-line 2h2d/no-silent-error-suppression -- Best-effort cleanup must not replace the primary write result.
+    } catch (error) {
+      void error;
     }
   }
 

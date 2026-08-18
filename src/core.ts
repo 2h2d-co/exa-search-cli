@@ -116,6 +116,7 @@ const ERROR_EXIT_CODES = {
 } satisfies Record<CliErrorKind, number>;
 
 type CliErrorOptions = {
+  cause?: unknown;
   detail?: JsonValue;
   kind?: CliErrorKind;
   refId?: string | undefined;
@@ -138,7 +139,7 @@ export class CliError extends Error {
   status: number | undefined;
 
   constructor(message: string, options: CliErrorOptions = {}) {
-    super(message);
+    super(message, { cause: options.cause });
     this.name = "CliError";
     this.detail = options.detail;
     this.kind = options.kind ?? "usage";
@@ -495,8 +496,9 @@ export async function apiJson(options: CliRunOptions): Promise<JsonValue> {
       throw new Error("Response was not JSON data");
     }
     return value;
-  } catch {
+  } catch (error) {
     throw new CliError(`API returned invalid JSON with status ${response.status}`, {
+      cause: error,
       kind: "api",
       status: response.status,
     });
@@ -544,8 +546,9 @@ export async function streamSearch(
         throw new Error("Response was not JSON data");
       }
       responseBody = value;
-    } catch {
+    } catch (error) {
       throw new CliError(`API returned invalid JSON with status ${response.status}`, {
+        cause: error,
         kind: "api",
         status: response.status,
       });
@@ -574,6 +577,9 @@ export async function streamSearch(
     const read = await reader.read();
     if (read.done) {
       break;
+    }
+    if (!(read.value instanceof Uint8Array)) {
+      throw new CliError("Streaming response contained a non-binary chunk", { kind: "api" });
     }
 
     buffer += decoder.decode(read.value, { stream: true });
@@ -1113,8 +1119,8 @@ function buildCommand(state: ParseState, env: Environment): CliCommand {
   const apiEndpoint = state.endpoint === "search" ? "search" : "contents";
   try {
     apiUrl(baseUrl, apiEndpoint);
-  } catch {
-    throw new CliError("--base-url must be a valid URL");
+  } catch (error) {
+    throw new CliError("--base-url must be a valid URL", { cause: error });
   }
 
   return {
@@ -1555,7 +1561,10 @@ async function buildHttpError(response: Response): Promise<CliError> {
             stringField(parsed, "request_id");
         }
       }
-    } catch {
+    } catch (error) {
+      if (!(error instanceof Error)) {
+        throw error;
+      }
       message = `${statusLabel}: ${text}`;
       detail = text;
     }
@@ -1592,8 +1601,11 @@ function writeSseContent(event: string, write: (chunk: string) => void): void {
       throw new Error("Stream event was not JSON data");
     }
     parsed = value;
-  } catch {
-    throw new CliError("Search stream contained invalid JSON data", { kind: "api" });
+  } catch (error) {
+    throw new CliError("Search stream contained invalid JSON data", {
+      cause: error,
+      kind: "api",
+    });
   }
 
   if (!isJsonObject(parsed)) {
@@ -2020,18 +2032,26 @@ function validateStringArray(
   if (!isPresent(value)) {
     return;
   }
-  if (!Array.isArray(value) || value.some((entry) => !isString(entry))) {
+  if (!Array.isArray(value)) {
     throw new CliError(`${field} must be an array of strings or null`);
   }
 
-  if (bounds.minItems !== undefined && value.length < bounds.minItems) {
+  const strings: string[] = [];
+  for (const entry of value) {
+    if (!isString(entry)) {
+      throw new CliError(`${field} must be an array of strings or null`);
+    }
+    strings.push(entry);
+  }
+
+  if (bounds.minItems !== undefined && strings.length < bounds.minItems) {
     throw new CliError(`${field} must contain at least ${bounds.minItems} entries`);
   }
-  if (bounds.maxItems !== undefined && value.length > bounds.maxItems) {
+  if (bounds.maxItems !== undefined && strings.length > bounds.maxItems) {
     throw new CliError(`${field} must contain at most ${bounds.maxItems} entries`);
   }
 
-  for (const entry of value) {
+  for (const entry of strings) {
     if (bounds.minItemLength !== undefined && entry.length < bounds.minItemLength) {
       throw new CliError(
         `${field} entries must contain at least ${bounds.minItemLength} characters`,
