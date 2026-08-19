@@ -76,6 +76,7 @@ async function main(): Promise<void> {
       error instanceof CliError
         ? error
         : new CliError(error instanceof Error ? error.message : String(error), {
+            cause: error,
             kind: "internal",
           });
     const formatted = formatCliError(cliError, errorFormat);

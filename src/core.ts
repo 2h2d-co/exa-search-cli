@@ -199,7 +199,7 @@ export function parseCli(
       return io.readStdin();
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      throw new CliError(`Could not read ${flag} from standard input: ${reason}`);
+      throw new CliError(`Could not read ${flag} from standard input: ${reason}`, { cause: error });
     }
   };
 
@@ -1887,7 +1887,7 @@ function parseJsonOrFile(value: string, flag: string, readStdin: StdinReader): J
     return parsed;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new CliError(`${flag} contains invalid JSON: ${reason}`);
+    throw new CliError(`${flag} contains invalid JSON: ${reason}`, { cause: error });
   }
 }
 
@@ -1900,7 +1900,7 @@ function readJsonFile(path: string, flag: string, readStdin: StdinReader): strin
     return readFileSync(path, "utf8");
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new CliError(`Could not read ${flag} file ${path}: ${reason}`);
+    throw new CliError(`Could not read ${flag} file ${path}: ${reason}`, { cause: error });
   }
 }
 
@@ -2095,8 +2095,7 @@ function nestedField(prefix: string, field: string): string {
 }
 
 function mergeObjects(base: JsonObject, override: JsonObject) {
-  const merged: JsonObject = {};
-  Object.assign(merged, base);
+  const merged = { ...base };
 
   for (const [key, value] of Object.entries(override)) {
     const baseValue = merged[key];
