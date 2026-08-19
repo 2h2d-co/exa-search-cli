@@ -99,7 +99,6 @@ async function withServer(
   run: (baseUrl: string) => Promise<void>,
 ): Promise<void> {
   const server = createServer((request, response) => {
-    // oxlint-disable-next-line 2h2d/no-silent-error-suppression -- Destroying the response propagates handler failure to the test client.
     Promise.resolve(handler(request, response)).catch((error: unknown) => {
       response.destroy(error instanceof Error ? error : new Error(String(error)));
     });
