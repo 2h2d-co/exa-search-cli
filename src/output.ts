@@ -54,7 +54,11 @@ export function writeOutputFile(path: string, content: string): OutputReceipt {
   } finally {
     try {
       unlinkSync(temporary);
-    } catch {}
+    } catch (cleanupError) {
+      console.error(
+        `Could not remove temporary output file ${temporary}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+      );
+    }
   }
 
   return {
