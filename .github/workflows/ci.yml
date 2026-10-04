@@ -33,11 +33,11 @@ jobs:
           install_args: --locked
           cache: false
 
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
+      - name: Install dependencies and Git hooks
+        run: mise run init
 
       - name: Check
-        run: npm run check
+        run: hk check --all --check
 
       - name: Test
         run: npm test

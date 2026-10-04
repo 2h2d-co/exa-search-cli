@@ -37,7 +37,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Check
-        run: npm run check
+        run: hk check --all --check
 
       - name: Test all CLI behavior and the packed artifact against the real API
         run: npm run test:integration

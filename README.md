@@ -279,10 +279,8 @@ The CLI excludes deprecated request fields such as `context`, `livecrawl`, `star
 
 ```bash
 mise install
-npm install
-npm run check
-npm test
-npm run pack:dry
+mise run init
+mise run check
 ```
 
 `npm test` combines fast source-level tests with black-box package tests. The package tests copy the publishable sources into a temporary directory, compile them, create an npm tarball, unpack it, and invoke its declared `exa-search` binary directly. This catches packaging and compiled-runtime failures that source-only tests cannot detect without making API requests.
